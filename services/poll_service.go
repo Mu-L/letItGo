@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sumit189letItGo/models"
 	"github.com/Sumit189letItGo/repository"
+	"github.com/Sumit189letItGo/utils"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -150,8 +151,15 @@ func processSchedule(schedule models.Scheduler) {
 		}
 	}(schedule)
 
+	// Decrypt the payload
+	decryptedPayload, err := utils.Decrypt(schedule.Payload)
+	if err != nil {
+		log.Printf("Error decrypting payload for schedule ID %s: %v", schedule.ID, err)
+		return
+	}
+
 	// Execute the webhook
-	err := executeWebhook(schedule.WebhookURL, schedule.Payload, schedule)
+	err = executeWebhook(schedule, decryptedPayload)
 	if err != nil {
 		log.Printf("Error executing webhook for schedule ID %s: %v", schedule.ID, err)
 		return
