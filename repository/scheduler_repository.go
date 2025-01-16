@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"time"
 
-	"sumit189/letItGo/database"
-	"sumit189/letItGo/models"
+	"github.com/Sumit189letItGo/database"
+	"github.com/Sumit189letItGo/models"
 
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"

@@ -3,10 +3,11 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
-	"sumit189/letItGo/models"
-	"sumit189/letItGo/repository"
-	"sumit189/letItGo/services"
 	"time"
+
+	"github.com/Sumit189letItGo/models"
+	"github.com/Sumit189letItGo/repository"
+	"github.com/Sumit189letItGo/services"
 )
 
 func ScheduleHandler(w http.ResponseWriter, r *http.Request) {

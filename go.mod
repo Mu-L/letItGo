@@ -1,4 +1,4 @@
-module sumit189/letItGo
+module github.com/Sumit189letItGo
 
 go 1.23.2
 

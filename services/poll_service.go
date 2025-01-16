@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"sumit189/letItGo/models"
-	"sumit189/letItGo/repository"
+	"github.com/Sumit189letItGo/models"
+	"github.com/Sumit189letItGo/repository"
 
 	"github.com/redis/go-redis/v9"
 )

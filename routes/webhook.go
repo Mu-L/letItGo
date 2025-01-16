@@ -3,7 +3,7 @@ package routes
 import (
 	"net/http"
 
-	"sumit189/letItGo/controllers"
+	"github.com/Sumit189letItGo/controllers"
 
 	"github.com/gorilla/mux"
 )

@@ -4,10 +4,10 @@ import (
 	"log"
 	"net/http"
 
-	"sumit189/letItGo/database"
-	"sumit189/letItGo/repository"
-	"sumit189/letItGo/routes"
-	"sumit189/letItGo/services"
+	"github.com/Sumit189letItGo/database"
+	"github.com/Sumit189letItGo/repository"
+	"github.com/Sumit189letItGo/routes"
+	"github.com/Sumit189letItGo/services"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
