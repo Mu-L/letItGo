@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 )
 
 func Encrypt(data interface{}) (string, error) {
@@ -63,4 +64,28 @@ func Decrypt(encryptedData string) (interface{}, error) {
 	}
 
 	return result, nil
+}
+
+func RemovePrefix(key string, prefix string) string {
+	return strings.TrimPrefix(key, prefix)
+}
+
+func DecryptAndConvertToJSON(encryptedData string) (interface{}, error) {
+	decryptedData, err := Decrypt(encryptedData)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure decryptedPayload is a string
+	decryptedPayloadStr, ok := decryptedData.(string)
+	if !ok {
+		return nil, errors.New("decrypted payload is not a string")
+	}
+
+	// Validate the decrypted payload as JSON without unmarshaling into a map
+	if !json.Valid([]byte(decryptedPayloadStr)) {
+		return nil, errors.New("decrypted payload is not valid JSON")
+	}
+
+	return []byte(decryptedPayloadStr), nil
 }

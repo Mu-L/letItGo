@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"time"
 
 	"github.com/Sumit189letItGo/database"
 	"github.com/Sumit189letItGo/models"
+	"github.com/Sumit189letItGo/utils"
 
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
@@ -56,13 +58,14 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 	timeWindowEnd := currentTime.Add(1 * time.Minute)
 
 	// Step 1: Retrieve IDs of schedules already in the queue from Redis
-	queuedIDs, err := RedisClient.SMembers(context.Background(), "in_queue").Result()
+	queuedIDsWithPrefix, err := RedisClient.SMembers(context.Background(), "in_queue").Result()
 	if err != nil && err != redis.Nil {
 		return nil, err
 	}
 
 	var excludedIDs []primitive.ObjectID
-	for _, id := range queuedIDs {
+	for _, idWithPrefix := range queuedIDsWithPrefix {
+		id := utils.RemovePrefix(idWithPrefix, "in_queue:")
 		objectID, err := primitive.ObjectIDFromHex(id)
 		if err == nil {
 			excludedIDs = append(excludedIDs, objectID)
@@ -107,20 +110,44 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 
 	// Step 4: Add fetched task IDs to Redis to mark them as in queue
 	if len(tasks) > 0 {
-		var idsToAdd []interface{}
+		pipe := RedisClient.Pipeline()
 		for _, task := range tasks {
-			idsToAdd = append(idsToAdd, task.ID)
+			objectID, err := primitive.ObjectIDFromHex(task.ID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid task ID: %v", err)
+			}
+			pipe.SetEx(context.Background(), "in_queue:"+objectID.Hex(), true, 1*time.Minute)
 		}
-		pipe := RedisClient.TxPipeline()
-		pipe.SAdd(context.Background(), "in_queue", idsToAdd...)
-		pipe.Expire(context.Background(), "in_queue", 2*time.Minute)
-		_, err = pipe.Exec(context.Background())
+		_, err := pipe.Exec(context.Background())
 		if err != nil {
-			return nil, err
+			log.Printf("Failed to execute redis pipeline for adding Ids: %v", err)
 		}
 	}
 
 	return tasks, nil
+}
+
+func FetchSchedulesBetween(startTime, endTime time.Time) ([]models.Scheduler, error) {
+	filter := bson.M{
+		"next_run_time": bson.M{
+			"$gte": startTime,
+			"$lt":  endTime,
+		},
+	}
+
+	findOptions := options.Find()
+	cursor, err := SchedulerCollection.Find(context.Background(), filter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var schedules []models.Scheduler
+	if err = cursor.All(context.Background(), &schedules); err != nil {
+		return nil, err
+	}
+
+	return schedules, nil
 }
 
 func UpdateSchedulerStatus(schedule models.Scheduler, status string) error {
