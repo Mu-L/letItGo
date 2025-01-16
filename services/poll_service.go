@@ -45,13 +45,15 @@ func (h *ScheduleHeap) Pop() interface{} {
 
 func PollSchedules() {
 	log.Println("Polling schedules")
-	scheduleQueue := make(chan models.Scheduler, queueSize)
-	log.Println("Schedule queue created")
+	scheduleQueues := make([]chan models.Scheduler, workerCount)
+	for i := range scheduleQueues {
+		scheduleQueues[i] = make(chan models.Scheduler, queueSize)
+	}
 
 	// Start worker goroutines
 	for i := 0; i < workerCount; i++ {
 		log.Println("Starting worker: ", i)
-		go worker(scheduleQueue)
+		go worker(scheduleQueues[i])
 	}
 
 	resetTicker := time.NewTicker(fetchWindow)
@@ -86,7 +88,7 @@ func PollSchedules() {
 			}
 
 			// Fetch pending schedules from db
-			schedules, err := repository.FetchPending(10)
+			schedules, err := repository.FetchPending(10 * workerCount)
 			log.Printf("Fetched schedules: %v", len(schedules))
 			if err != nil {
 				log.Printf("Error fetching pending schedules: %v", err)
@@ -98,11 +100,12 @@ func PollSchedules() {
 				return schedules[i].NextRunTime.Before(*schedules[j].NextRunTime)
 			})
 
-			for _, schedule := range schedules {
+			// Distribute schedules among workers
+			for i, schedule := range schedules {
 				if isProcessed(schedule.ID) {
 					continue
 				}
-				scheduleQueue <- schedule
+				scheduleQueues[i%workerCount] <- schedule
 			}
 			// Wait before the next polling cycle
 			time.Sleep(fetchWindow)
