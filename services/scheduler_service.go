@@ -10,6 +10,7 @@ import (
 
 	"github.com/Sumit189letItGo/models"
 	"github.com/Sumit189letItGo/repository"
+	"github.com/Sumit189letItGo/utils"
 )
 
 func Schedule(scheduler models.Scheduler) error {
@@ -20,6 +21,13 @@ func Schedule(scheduler models.Scheduler) error {
 	if scheduler.ScheduleTime != nil && scheduler.CronExpression != "" {
 		return errors.New("schedule_time and cron_expression cannot both be set")
 	}
+
+	// Encrypt the payload
+	encryptedPayload, err := utils.Encrypt(scheduler.Payload)
+	if err != nil {
+		return err
+	}
+	scheduler.Payload = encryptedPayload
 
 	scheduler.Status = "pending"
 	scheduler.CreatedAt = time.Now()
@@ -70,7 +78,8 @@ func markProcessed(schedule models.Scheduler) {
 	}
 }
 
-func executeWebhook(url string, payload interface{}, schedule models.Scheduler) error {
+func executeWebhook(schedule models.Scheduler, payload interface{}) error {
+	url := schedule.WebhookURL
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshaling payload: %v", err)

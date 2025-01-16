@@ -11,11 +11,33 @@ import (
 )
 
 func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
-	var scheduler models.Scheduler
-	err := json.NewDecoder(r.Body).Decode(&scheduler)
-	if err != nil {
+	var tempPayload map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&tempPayload); err != nil {
 		http.Error(w, "Invalid payload", http.StatusBadRequest)
 		return
+	}
+
+	payloadBytes, err := json.Marshal(tempPayload["payload"])
+	if err != nil {
+		http.Error(w, "Failed to encode payload", http.StatusInternalServerError)
+		return
+	}
+
+	scheduler := models.NewScheduler()
+	scheduler.WebhookURL = tempPayload["webhook_url"].(string)
+	scheduler.Payload = string(payloadBytes)
+
+	if scheduleTimeStr, ok := tempPayload["schedule_time"].(string); ok {
+		scheduleTime, err := time.Parse(time.RFC3339, scheduleTimeStr)
+		if err != nil {
+			http.Error(w, "Invalid schedule_time format", http.StatusBadRequest)
+			return
+		}
+		scheduler.ScheduleTime = &scheduleTime
+	}
+
+	if cronExpr, ok := tempPayload["cron_expression"].(string); ok {
+		scheduler.CronExpression = cronExpr
 	}
 
 	if scheduler.ScheduleTime == nil && scheduler.CronExpression == "" {
@@ -39,8 +61,7 @@ func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = services.Schedule(scheduler)
-	if err != nil {
+	if err := services.Schedule(*scheduler); err != nil {
 		http.Error(w, "Error scheduling webhook: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
