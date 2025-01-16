@@ -5,25 +5,27 @@ import (
 	"context"
 	"log"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/Sumit189letItGo/models"
 	"github.com/Sumit189letItGo/repository"
-	"github.com/Sumit189letItGo/utils"
-
-	"github.com/redis/go-redis/v9"
 )
 
 const (
-	workerCount    = 5
+	workerCount    = 6
 	queueSize      = 100
 	cacheWindow    = 1 * time.Minute
 	fetchWindow    = 5 * time.Second
 	maxFetchPerWin = 10
+	poolInterval   = 10 * time.Second
+	workerInterval = 1 * time.Second
 )
 
 var (
-	ctx = context.Background()
+	ctx          = context.Background()
+	scheduleHeap = &ScheduleHeap{}
+	heapMutex    sync.Mutex
 )
 
 type ScheduleHeap []models.Scheduler
@@ -53,86 +55,74 @@ func PollSchedules() {
 
 	// Start worker goroutines
 	for i := 0; i < workerCount; i++ {
-		log.Println("Starting worker: ", i)
-		go worker(scheduleQueues[i])
+		time.Sleep(workerInterval)
+		go worker(scheduleQueues[i], i)
 	}
 
-	resetTicker := time.NewTicker(fetchWindow)
-	defer resetTicker.Stop()
-
-	for {
-		select {
-		case <-resetTicker.C:
-			// Counter reset
-			err := repository.RedisClient.Set(ctx, "fetch_count", 0, 0).Err()
-			if err != nil {
-				log.Printf("Redis error resetting fetch count: %v", err)
-			}
-		default:
-			count, err := repository.RedisClient.Get(ctx, "fetch_count").Int()
-			if err != nil && err != redis.Nil {
-				log.Printf("Redis error getting fetch count: %v", err)
-				time.Sleep(fetchWindow)
-				continue
-			}
-
-			if count >= maxFetchPerWin {
-				time.Sleep(fetchWindow)
-				continue
-			}
-
-			err = repository.RedisClient.Incr(ctx, "fetch_count").Err()
-			if err != nil {
-				log.Printf("Redis error incrementing fetch count: %v", err)
-				time.Sleep(fetchWindow)
-				continue
-			}
-
-			// Fetch pending schedules from db
-			schedules, err := repository.FetchPending(10 * workerCount)
-			log.Printf("Fetched schedules: %v", len(schedules))
-			if err != nil {
-				log.Printf("Error fetching pending schedules: %v", err)
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			sort.Slice(schedules, func(i, j int) bool {
-				return schedules[i].NextRunTime.Before(*schedules[j].NextRunTime)
-			})
-
-			// Distribute schedules among workers
-			for i, schedule := range schedules {
-				if isProcessed(schedule.ID) {
-					continue
-				}
-				scheduleQueues[i%workerCount] <- schedule
-			}
-			// Wait before the next polling cycle
-			time.Sleep(fetchWindow)
-		}
-	}
+	select {}
 }
 
-func worker(queue chan models.Scheduler) {
-	log.Println("Worker started")
-	scheduleHeap := &ScheduleHeap{}
+func worker(queue chan models.Scheduler, workerID int) {
+	log.Println("Worker started: ", workerID)
 	heap.Init(scheduleHeap)
 
 	for {
 		select {
 		case schedule := <-queue:
+			heapMutex.Lock()
 			heap.Push(scheduleHeap, schedule)
+			heapMutex.Unlock()
 		default:
+			heapMutex.Lock()
 			if scheduleHeap.Len() > 0 {
 				nextSchedule := heap.Pop(scheduleHeap).(models.Scheduler)
 				nextRunTime := nextSchedule.NextRunTime
+				// Schedule the processing of the next schedule at its next run time
 				time.AfterFunc(time.Until(*nextRunTime), func() {
 					processSchedule(nextSchedule)
 				})
 			}
-			time.Sleep(100 * time.Millisecond) // Sleep for a short duration to avoid busy waiting
+			heapMutex.Unlock()
+			fetchAndProcessSchedules(workerID)
+			time.Sleep(poolInterval)
 		}
+	}
+}
+
+func fetchAndProcessSchedules(workerID int) {
+	limit := int64(10)
+	schedules, err := repository.FetchPending(limit)
+	log.Printf("Worker %d fetched %d schedules", workerID, len(schedules))
+	if err != nil {
+		log.Printf("Error fetching schedules for worker %d: %v", workerID, err)
+		return
+	}
+
+	sort.Slice(schedules, func(i, j int) bool {
+		return schedules[i].NextRunTime.Before(*schedules[j].NextRunTime)
+	})
+
+	if len(schedules) > 0 {
+		var idsToAdd []interface{}
+		for _, task := range schedules {
+			idsToAdd = append(idsToAdd, task.ID)
+		}
+		pipe := repository.RedisClient.TxPipeline()
+		pipe.SAdd(context.Background(), "in_queue", idsToAdd...)
+		pipe.Expire(context.Background(), "in_queue", 1*time.Minute)
+		_, err = pipe.Exec(context.Background())
+		if err != nil {
+			return
+		}
+	}
+
+	heapMutex.Lock()
+	defer heapMutex.Unlock()
+	for _, schedule := range schedules {
+		if isProcessed(schedule.ID) {
+			continue
+		}
+		heap.Push(scheduleHeap, schedule)
 	}
 }
 
@@ -150,16 +140,8 @@ func processSchedule(schedule models.Scheduler) {
 			log.Printf("Error updating status: %v", err)
 		}
 	}(schedule)
-
-	// Decrypt the payload
-	decryptedPayload, err := utils.Decrypt(schedule.Payload)
-	if err != nil {
-		log.Printf("Error decrypting payload for schedule ID %s: %v", schedule.ID, err)
-		return
-	}
-
 	// Execute the webhook
-	err = executeWebhook(schedule, decryptedPayload)
+	err := executeWebhook(schedule)
 	if err != nil {
 		log.Printf("Error executing webhook for schedule ID %s: %v", schedule.ID, err)
 		return

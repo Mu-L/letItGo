@@ -2,7 +2,6 @@ package services
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -78,15 +77,17 @@ func markProcessed(schedule models.Scheduler) {
 	}
 }
 
-func executeWebhook(schedule models.Scheduler, payload interface{}) error {
+func executeWebhook(schedule models.Scheduler) error {
 	url := schedule.WebhookURL
-	jsonData, err := json.Marshal(payload)
+	payloadBytes, err := utils.DecryptAndConvertToJSON(schedule.Payload)
 	if err != nil {
-		log.Printf("Error marshaling payload: %v", err)
+		log.Printf("Error decrypting payload: %v", err)
+		repository.UpdateRetries(schedule.ID)
 		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	payloadReader := bytes.NewReader(payloadBytes.([]byte))
+	req, err := http.NewRequest("POST", url, payloadReader)
 	if err != nil {
 		log.Printf("Error creating HTTP request: %v", err)
 		return err
