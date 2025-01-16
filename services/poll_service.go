@@ -3,8 +3,8 @@ package services
 import (
 	"container/heap"
 	"context"
+	"encoding/json"
 	"log"
-	"sort"
 	"sync"
 	"time"
 
@@ -46,6 +46,27 @@ func (h *ScheduleHeap) Pop() interface{} {
 	return item
 }
 
+func saveHeapToRedis(scheduleHeap *ScheduleHeap) error {
+	heapBytes, err := json.Marshal(scheduleHeap)
+	if err != nil {
+		return err
+	}
+	return repository.RedisClient.Set(ctx, "schedule_heap", heapBytes, 0).Err()
+}
+
+func loadHeapFromRedis() (*ScheduleHeap, error) {
+	heapBytes, err := repository.RedisClient.Get(ctx, "schedule_heap").Bytes()
+	if err != nil {
+		return nil, err
+	}
+	var scheduleHeap ScheduleHeap
+	err = json.Unmarshal(heapBytes, &scheduleHeap)
+	if err != nil {
+		return nil, err
+	}
+	return &scheduleHeap, nil
+}
+
 func PollSchedules() {
 	log.Println("Polling schedules")
 	scheduleQueues := make([]chan models.Scheduler, workerCount)
@@ -53,43 +74,47 @@ func PollSchedules() {
 		scheduleQueues[i] = make(chan models.Scheduler, queueSize)
 	}
 
+	// Load the heap from Redis
+	scheduleHeap, err := loadHeapFromRedis()
+	if err != nil {
+		log.Printf("Error loading heap from Redis: %v", err)
+		scheduleHeap = &ScheduleHeap{}
+	}
+
 	// Start worker goroutines
 	for i := 0; i < workerCount; i++ {
 		time.Sleep(workerInterval)
-		go worker(scheduleQueues[i], i)
+		go worker(scheduleQueues[i], i, scheduleHeap)
 	}
 
 	select {}
 }
 
-func worker(queue chan models.Scheduler, workerID int) {
+func worker(queue chan models.Scheduler, workerID int, scheduleHeap *ScheduleHeap) {
 	log.Println("Worker started: ", workerID)
 	heap.Init(scheduleHeap)
-
+	ticker := time.NewTicker(fetchWindow)
+	defer ticker.Stop()
 	for {
 		select {
 		case schedule := <-queue:
 			heapMutex.Lock()
 			heap.Push(scheduleHeap, schedule)
+			saveHeapToRedis(scheduleHeap)
 			heapMutex.Unlock()
+		case <-ticker.C:
+			fetchAndProcessSchedules(workerID, scheduleHeap)
+			processNextSchedule(scheduleHeap)
+			time.Sleep(poolInterval)
+			break
 		default:
-			heapMutex.Lock()
-			if scheduleHeap.Len() > 0 {
-				nextSchedule := heap.Pop(scheduleHeap).(models.Scheduler)
-				nextRunTime := nextSchedule.NextRunTime
-				// Schedule the processing of the next schedule at its next run time
-				time.AfterFunc(time.Until(*nextRunTime), func() {
-					processSchedule(nextSchedule)
-				})
-			}
-			heapMutex.Unlock()
-			fetchAndProcessSchedules(workerID)
+			processNextSchedule(scheduleHeap)
 			time.Sleep(poolInterval)
 		}
 	}
 }
 
-func fetchAndProcessSchedules(workerID int) {
+func fetchAndProcessSchedules(workerID int, scheduleHeap *ScheduleHeap) {
 	limit := int64(10)
 	schedules, err := repository.FetchPending(limit)
 	log.Printf("Worker %d fetched %d schedules", workerID, len(schedules))
@@ -97,10 +122,6 @@ func fetchAndProcessSchedules(workerID int) {
 		log.Printf("Error fetching schedules for worker %d: %v", workerID, err)
 		return
 	}
-
-	sort.Slice(schedules, func(i, j int) bool {
-		return schedules[i].NextRunTime.Before(*schedules[j].NextRunTime)
-	})
 
 	if len(schedules) > 0 {
 		var idsToAdd []interface{}
@@ -123,6 +144,22 @@ func fetchAndProcessSchedules(workerID int) {
 			continue
 		}
 		heap.Push(scheduleHeap, schedule)
+	}
+	saveHeapToRedis(scheduleHeap)
+}
+
+func processNextSchedule(scheduleHeap *ScheduleHeap) {
+	heapMutex.Lock()
+	defer heapMutex.Unlock()
+
+	if scheduleHeap.Len() > 0 {
+		nextSchedule := heap.Pop(scheduleHeap).(models.Scheduler)
+		nextRunTime := nextSchedule.NextRunTime
+		// Schedule the processing of the next schedule at its next run time
+		time.AfterFunc(time.Until(*nextRunTime), func() {
+			processSchedule(nextSchedule)
+		})
+		saveHeapToRedis(scheduleHeap)
 	}
 }
 

@@ -127,29 +127,6 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 	return tasks, nil
 }
 
-func FetchSchedulesBetween(startTime, endTime time.Time) ([]models.Scheduler, error) {
-	filter := bson.M{
-		"next_run_time": bson.M{
-			"$gte": startTime,
-			"$lt":  endTime,
-		},
-	}
-
-	findOptions := options.Find()
-	cursor, err := SchedulerCollection.Find(context.Background(), filter, findOptions)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(context.Background())
-
-	var schedules []models.Scheduler
-	if err = cursor.All(context.Background(), &schedules); err != nil {
-		return nil, err
-	}
-
-	return schedules, nil
-}
-
 func UpdateSchedulerStatus(schedule models.Scheduler, status string) error {
 	// Ensure the ID is a valid ObjectID
 	schedulerID, err := primitive.ObjectIDFromHex(schedule.ID)
