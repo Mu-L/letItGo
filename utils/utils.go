@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -102,4 +103,26 @@ func DecryptAndConvertToJSON(encryptedData string) (interface{}, error) {
 	}
 
 	return []byte(decryptedPayloadStr), nil
+}
+
+func ValidateAndAssignStringField(payload map[string]interface{}, fieldName string, field *string, w http.ResponseWriter) error {
+	value, ok := payload[fieldName].(string)
+	if !ok {
+		err := errors.New("invalid or missing " + fieldName)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return err
+	}
+	*field = value
+	return nil
+}
+
+func ValidateAndAssignIntField(payload map[string]interface{}, fieldName string, field *int, w http.ResponseWriter) error {
+	value, ok := payload[fieldName].(int)
+	if !ok {
+		err := errors.New("invalid or missing " + fieldName)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return err
+	}
+	*field = value
+	return nil
 }

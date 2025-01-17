@@ -10,9 +10,7 @@ import (
 
 	"github.com/Sumit189letItGo/database"
 	"github.com/Sumit189letItGo/models"
-	"github.com/Sumit189letItGo/utils"
 
-	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -50,7 +48,6 @@ func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
 		newScheduler.NextRunTime = scheduler.ScheduleTime
 	}
 
-	log.Printf("Scheduling task with ID: %s\n", newScheduler.ID)
 	insertedDoc, err := SchedulerCollection.InsertOne(context.Background(), newScheduler)
 	if err != nil {
 		return models.Scheduler{}, err
@@ -64,22 +61,6 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 	currentTime := time.Now()
 	timeWindowEnd := currentTime.Add(1 * time.Minute)
 
-	// Step 1: Retrieve IDs of schedules already in the queue from Redis
-	queuedIDsWithPrefix, err := RedisClient.SMembers(context.Background(), "in_queue").Result()
-	if err != nil && err != redis.Nil {
-		return nil, err
-	}
-
-	var excludedIDs []primitive.ObjectID
-	for _, idWithPrefix := range queuedIDsWithPrefix {
-		id := utils.RemovePrefix(idWithPrefix, "in_queue:")
-		objectID, err := primitive.ObjectIDFromHex(id)
-		if err == nil {
-			excludedIDs = append(excludedIDs, objectID)
-		}
-	}
-
-	// Step 2: Filter pending schedules based on time window and limit
 	filter := bson.M{
 		"status": "pending",
 		"next_run_time": bson.M{
@@ -87,15 +68,10 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 		},
 	}
 
-	if len(excludedIDs) > 0 {
-		filter["_id"] = bson.M{
-			"$nin": excludedIDs,
-		}
-	}
+	findOptions := options.Find()
+	findOptions.SetLimit(limit)
+	findOptions.SetSort(bson.M{"next_run_time": 1})
 
-	findOptions := options.Find().SetLimit(limit)
-
-	// Step 3: Fetch pending schedules
 	cursor, err := SchedulerCollection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		return nil, err
@@ -110,24 +86,30 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 		}
 		tasks = append(tasks, task)
 	}
-
 	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
 
-	// Step 4: Add fetched task IDs to Redis to mark them as in queue
-	if len(tasks) > 0 {
-		pipe := RedisClient.Pipeline()
-		for _, task := range tasks {
-			objectID, err := primitive.ObjectIDFromHex(task.ID)
-			if err != nil {
-				return nil, fmt.Errorf("invalid task ID: %v", err)
-			}
-			pipe.SetEx(context.Background(), "in_queue:"+objectID.Hex(), true, 1*time.Minute)
-		}
-		_, err := pipe.Exec(context.Background())
+	updateModels := []mongo.WriteModel{}
+
+	for _, task := range tasks {
+		objectID, err := primitive.ObjectIDFromHex(task.ID)
 		if err != nil {
-			log.Printf("Failed to execute redis pipeline for adding Ids: %v", err)
+			return nil, fmt.Errorf("invalid task ID: %v", err)
+		}
+		updateFilter := bson.M{"_id": objectID}
+		update := bson.M{"$set": bson.M{"status": "processing"}}
+
+		updateModel := mongo.NewUpdateOneModel().
+			SetFilter(updateFilter).
+			SetUpdate(update)
+		updateModels = append(updateModels, updateModel)
+	}
+
+	if len(updateModels) > 0 {
+		_, err := SchedulerCollection.BulkWrite(context.Background(), updateModels)
+		if err != nil {
+			log.Printf("Bulk update error to picked: %v", err)
 		}
 	}
 
@@ -221,7 +203,7 @@ func UpdateRetries(id string) error {
 		return errors.New("retry limit reached")
 	}
 
-	nextRetryTime := time.Now().Add(time.Duration(scheduler.RetryTimeoutInSeconds) * time.Second)
+	nextRetryTime := time.Now().Add(time.Duration(scheduler.RetryAfterInSeconds) * time.Second)
 	_, err = SchedulerCollection.UpdateOne(
 		context.Background(),
 		bson.M{"_id": objectID},
@@ -234,5 +216,8 @@ func UpdateRetries(id string) error {
 			},
 		},
 	)
-	return err
+	if err != nil {
+		return errors.New("error updating retries")
+	}
+	return nil
 }
