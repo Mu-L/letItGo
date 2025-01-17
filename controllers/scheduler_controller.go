@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -26,6 +27,21 @@ func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
 	scheduler := models.NewScheduler()
 	scheduler.WebhookURL = tempPayload["webhook_url"].(string)
 	scheduler.Payload = string(payloadBytes)
+
+	if tempPayload["time_as_text"] != nil {
+		timeStringOrCronExp, isCron, err := repository.TextToTimeOrCronExpression(tempPayload["time_as_text"].(string))
+		log.Println("timeStringOrCronExp", timeStringOrCronExp)
+		if err != nil {
+			http.Error(w, "Failed to convert text to time string or cron expression", http.StatusInternalServerError)
+			return
+		}
+
+		if isCron {
+			tempPayload["cron_expression"] = timeStringOrCronExp
+		} else {
+			tempPayload["schedule_time"] = timeStringOrCronExp
+		}
+	}
 
 	if scheduleTimeStr, ok := tempPayload["schedule_time"].(string); ok {
 		scheduleTime, err := time.Parse(time.RFC3339, scheduleTimeStr)
@@ -61,13 +77,18 @@ func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := services.Schedule(*scheduler); err != nil {
+	scheduled, err := services.Schedule(*scheduler)
+	if err != nil {
 		http.Error(w, "Error scheduling webhook: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Task scheduled"})
+	timeStr := ""
+	if scheduled.NextRunTime != nil {
+		timeStr = scheduled.ScheduleTime.Format(time.RFC3339)
+	}
+	json.NewEncoder(w).Encode(map[string]string{"message": "Task scheduled", "time": timeStr, "cron": scheduled.CronExpression, "id": scheduled.ID})
 }
 
 func FetchPendingHandler(w http.ResponseWriter, r *http.Request) {
