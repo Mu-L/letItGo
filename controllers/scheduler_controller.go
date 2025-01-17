@@ -86,7 +86,7 @@ func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	timeStr := ""
 	if scheduled.NextRunTime != nil {
-		timeStr = scheduled.ScheduleTime.Format(time.RFC3339)
+		timeStr = scheduled.NextRunTime.Format(time.RFC3339)
 	}
 	json.NewEncoder(w).Encode(map[string]string{"message": "Task scheduled", "time": timeStr, "cron": scheduled.CronExpression, "id": scheduled.ID})
 }

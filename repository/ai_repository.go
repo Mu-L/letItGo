@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 const (
@@ -38,6 +39,8 @@ func TextToTimeOrCronExpression(text string) (string, bool, error) {
 		return "", false, fmt.Errorf("environment variables LLM_API_URL or LLM_API_KEY are not set")
 	}
 
+	currentTimeInUTC := time.Now().UTC().Format(time.RFC3339)
+	userText := fmt.Sprintf("Ask: %s, Current time in UTC: %s", text, currentTimeInUTC)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"messages": []map[string]string{
 			{
@@ -46,7 +49,7 @@ func TextToTimeOrCronExpression(text string) (string, bool, error) {
 			},
 			{
 				"role":    "user",
-				"content": text,
+				"content": userText,
 			},
 		},
 		"model":       "llama-3.1-70b-versatile",
