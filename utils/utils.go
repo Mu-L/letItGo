@@ -8,17 +8,37 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"os"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
+
+var (
+	encryptionKey []byte
+	block         cipher.Block
+)
+
+func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	key := os.Getenv("PAYLOAD_ENCRYPTION_KEY")
+	if key == "" {
+		panic("PAYLOAD_ENCRYPTION_KEY environment variable is not set")
+	}
+	encryptionKey = []byte(key)
+	block, err = aes.NewCipher(encryptionKey)
+	if err != nil {
+		panic("Failed to create cipher block: " + err.Error())
+	}
+}
 
 func Encrypt(data interface{}) (string, error) {
 	plaintext, err := json.Marshal(data)
-	if err != nil {
-		return "", err
-	}
-	var encryptionKey = []byte(os.Getenv("PAYLOAD_ENCRYPTION_KEY"))
-	block, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		return "", err
 	}
@@ -37,12 +57,6 @@ func Encrypt(data interface{}) (string, error) {
 
 func Decrypt(encryptedData string) (interface{}, error) {
 	ciphertext, err := base64.URLEncoding.DecodeString(encryptedData)
-	if err != nil {
-		return nil, err
-	}
-
-	var encryptionKey = []byte(os.Getenv("PAYLOAD_ENCRYPTION_KEY"))
-	block, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		return nil, err
 	}

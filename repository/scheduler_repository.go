@@ -25,7 +25,7 @@ func InitializeSchedulerRepository() {
 	SchedulerCollection = database.GetCollection("schedulers")
 }
 
-func Schedule(scheduler models.Scheduler) error {
+func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
 	newScheduler := models.NewScheduler()
 
 	// Use reflection to copy non-zero values from the provided scheduler
@@ -43,14 +43,21 @@ func Schedule(scheduler models.Scheduler) error {
 	if scheduler.CronExpression != "" {
 		runTimeBasedOnCron, err := CronToTime(scheduler.CronExpression)
 		if err != nil {
-			return errors.New("invalid cron expression")
+			return models.Scheduler{}, errors.New("invalid cron expression")
 		}
 		newScheduler.NextRunTime = &runTimeBasedOnCron
 	} else {
 		newScheduler.NextRunTime = scheduler.ScheduleTime
 	}
-	_, err := SchedulerCollection.InsertOne(context.Background(), newScheduler)
-	return err
+
+	log.Printf("Scheduling task with ID: %s\n", newScheduler.ID)
+	insertedDoc, err := SchedulerCollection.InsertOne(context.Background(), newScheduler)
+	if err != nil {
+		return models.Scheduler{}, err
+	}
+
+	newScheduler.ID = insertedDoc.InsertedID.(primitive.ObjectID).Hex()
+	return *newScheduler, nil
 }
 
 func FetchPending(limit int64) ([]models.Scheduler, error) {
@@ -180,7 +187,7 @@ func rescheduleCronJob(schedulerID primitive.ObjectID) error {
 	updatedSchedule.ID = "" // Reset ID to avoid conflicts
 
 	// Schedule the updated task
-	if err := Schedule(updatedSchedule); err != nil {
+	if _, err := Schedule(updatedSchedule); err != nil {
 		return fmt.Errorf("failed to schedule cron for updated schedule with ID %v: %w", schedulerID.Hex(), err)
 	}
 

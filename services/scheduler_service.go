@@ -12,26 +12,30 @@ import (
 	"github.com/Sumit189letItGo/utils"
 )
 
-func Schedule(scheduler models.Scheduler) error {
+func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
 	// Validation checks
 	if scheduler.ScheduleTime == nil && scheduler.CronExpression == "" {
-		return errors.New("either schedule_time or cron_expression must be provided")
+		return models.Scheduler{}, errors.New("either schedule_time or cron_expression must be provided")
 	}
 	if scheduler.ScheduleTime != nil && scheduler.CronExpression != "" {
-		return errors.New("schedule_time and cron_expression cannot both be set")
+		return models.Scheduler{}, errors.New("schedule_time and cron_expression cannot both be set")
 	}
 
 	// Encrypt the payload
 	encryptedPayload, err := utils.Encrypt(scheduler.Payload)
 	if err != nil {
-		return err
+		return models.Scheduler{}, err
 	}
 	scheduler.Payload = encryptedPayload
 
 	scheduler.Status = "pending"
 	scheduler.CreatedAt = time.Now()
 	scheduler.UpdatedAt = time.Now()
-	return repository.Schedule(scheduler)
+	scheduled, err := repository.Schedule(scheduler)
+	if err != nil {
+		return models.Scheduler{}, err
+	}
+	return scheduled, nil
 }
 
 func FetchPendingSchedules(limit int64) ([]models.Scheduler, error) {
