@@ -31,8 +31,8 @@ func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
 	if tempPayload["time_as_text"] != nil {
 		timeStringOrCronExp, isCron, err := repository.TextToTimeOrCronExpression(tempPayload["time_as_text"].(string))
 		log.Println("timeStringOrCronExp", timeStringOrCronExp)
-		if err != nil {
-			http.Error(w, "Failed to convert text to time string or cron expression", http.StatusInternalServerError)
+		if err != nil || timeStringOrCronExp == "" {
+			http.Error(w, "Failed to convert text to time string or cron expression, Try Again with a better input", http.StatusBadRequest)
 			return
 		}
 
