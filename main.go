@@ -43,13 +43,6 @@ func main() {
 		services.PollAndProduce(ctx)
 	}()
 
-	// Start the consumer service
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		services.ConsumeAndProcess(ctx)
-	}()
-
 	// Router
 	router := mux.NewRouter()
 	routes.WebhookRoutes(router)

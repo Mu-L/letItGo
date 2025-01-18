@@ -21,10 +21,6 @@ const (
 	cacheWindow          = 10 * time.Minute
 )
 
-var (
-	ctx = context.Background()
-)
-
 func PollAndProduce(ctx context.Context) {
 	log.Println("Starting Producer Service...")
 

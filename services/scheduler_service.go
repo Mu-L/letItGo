@@ -67,15 +67,6 @@ func FetchPendingSchedules(limit int64) ([]models.Scheduler, error) {
 	return tasks, nil
 }
 
-func isProcessed(id string) bool {
-	exists, err := repository.RedisClient.SIsMember(ctx, "processed_schedules", id).Result()
-	if err != nil {
-		log.Printf("Redis error: %v", err)
-		return false
-	}
-	return exists
-}
-
 func markProcessed(ctx context.Context, schedule models.Scheduler) {
 	id := schedule.ID
 	pipe := repository.RedisClient.TxPipeline()
