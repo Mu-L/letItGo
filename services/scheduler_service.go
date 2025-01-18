@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -27,7 +28,7 @@ var (
 	sharedClient = &http.Client{Timeout: 10 * time.Second}
 )
 
-func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
+func Schedule(ctx context.Context, scheduler models.Scheduler) (models.Scheduler, error) {
 	// Validation checks
 	if scheduler.ScheduleTime == nil && scheduler.CronExpression == "" {
 		return models.Scheduler{}, errors.New("either schedule_time or cron_expression must be provided")
@@ -46,7 +47,7 @@ func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
 	scheduler.Status = "pending"
 	scheduler.CreatedAt = time.Now()
 	scheduler.UpdatedAt = time.Now()
-	scheduled, err := repository.Schedule(scheduler)
+	scheduled, err := repository.Schedule(ctx, scheduler)
 	if err != nil {
 		return models.Scheduler{}, err
 	}
@@ -75,7 +76,7 @@ func isProcessed(id string) bool {
 	return exists
 }
 
-func markProcessed(schedule models.Scheduler) {
+func markProcessed(ctx context.Context, schedule models.Scheduler) {
 	id := schedule.ID
 	pipe := repository.RedisClient.TxPipeline()
 
@@ -88,14 +89,14 @@ func markProcessed(schedule models.Scheduler) {
 		return
 	}
 
-	// mark completed
-	err = repository.UpdateSchedulerStatus(schedule, "completed")
+	// Mark as completed
+	err = repository.UpdateSchedulerStatus(ctx, schedule, "completed")
 	if err != nil {
 		log.Printf("Error updating status: %v", err)
 	}
 }
 
-func executeWebhook(scheduleId string) error {
+func executeWebhook(ctx context.Context, scheduleId string) error {
 	var schedule models.Scheduler
 	scheduleObjectID, err := primitive.ObjectIDFromHex(scheduleId)
 	if err != nil {
@@ -110,14 +111,26 @@ func executeWebhook(scheduleId string) error {
 	}
 
 	for {
+		// Check if the context is done before proceeding
+		select {
+		case <-ctx.Done():
+			log.Printf("Context canceled for schedule ID %s", schedule.ID)
+			return ctx.Err()
+		default:
+			// Continue processing
+		}
+
 		payloadBytes, err := utils.DecryptAndConvertToJSON(schedule.Payload)
 		if err != nil {
 			log.Printf("Error decrypting payload: %v", err)
-			repository.UpdateRetries(schedule.ID)
+			if updateErr := repository.UpdateRetries(ctx, schedule.ID); updateErr != nil {
+				log.Printf("Error updating retries: %v", updateErr)
+				return updateErr
+			}
 			return err
 		}
 
-		req, err := http.NewRequest(schedule.MethodType, schedule.WebhookURL, bytes.NewReader(payloadBytes.([]byte)))
+		req, err := http.NewRequestWithContext(ctx, schedule.MethodType, schedule.WebhookURL, bytes.NewReader(payloadBytes.([]byte)))
 		if err != nil {
 			log.Printf("Error creating request: %v", err)
 			return err
@@ -127,8 +140,7 @@ func executeWebhook(scheduleId string) error {
 		resp, err := sharedClient.Do(req)
 		if err != nil {
 			log.Printf("HTTP request error: %v", err)
-			updateErr := repository.UpdateRetries(schedule.ID)
-			if updateErr != nil {
+			if updateErr := repository.UpdateRetries(ctx, schedule.ID); updateErr != nil {
 				log.Printf("Error updating retries: %v", updateErr)
 				return updateErr
 			}
@@ -149,12 +161,21 @@ func executeWebhook(scheduleId string) error {
 
 		if schedule.WebhookRetryCount >= schedule.WebhookRetryLimit {
 			log.Printf("Webhook retry limit reached for schedule ID %s", schedule.ID)
-			repository.UpdateRetries(schedule.ID)
+			if err := repository.UpdateRetries(ctx, schedule.ID); err != nil {
+				log.Printf("Error updating retries: %v", err)
+				return err
+			}
 			return errors.New("webhook retry limit reached")
 		}
 
-		// Introduce delay before retrying
-		time.Sleep(time.Duration(schedule.RetryAfterInSeconds) * time.Second)
+		// Introduce delay before retrying, respecting context cancellation
+		select {
+		case <-ctx.Done():
+			log.Printf("Context canceled during sleep for schedule ID %s", schedule.ID)
+			return ctx.Err()
+		case <-time.After(time.Duration(schedule.RetryAfterInSeconds) * time.Second):
+			// Proceed to retry
+		}
 
 		err = repository.SchedulerCollection.FindOneAndUpdate(
 			ctx,

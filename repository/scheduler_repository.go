@@ -23,7 +23,7 @@ func InitializeSchedulerRepository() {
 	SchedulerCollection = database.GetCollection("schedulers")
 }
 
-func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
+func Schedule(ctx context.Context, scheduler models.Scheduler) (models.Scheduler, error) {
 	newScheduler := models.NewScheduler()
 
 	// Use reflection to copy non-zero values from the provided scheduler
@@ -48,7 +48,7 @@ func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
 		newScheduler.NextRunTime = scheduler.ScheduleTime
 	}
 
-	insertedDoc, err := SchedulerCollection.InsertOne(context.Background(), newScheduler)
+	insertedDoc, err := SchedulerCollection.InsertOne(ctx, newScheduler)
 	if err != nil {
 		return models.Scheduler{}, err
 	}
@@ -56,7 +56,6 @@ func Schedule(scheduler models.Scheduler) (models.Scheduler, error) {
 	newScheduler.ID = insertedDoc.InsertedID.(primitive.ObjectID).Hex()
 	return *newScheduler, nil
 }
-
 func FetchPending(limit int64) ([]models.Scheduler, error) {
 	currentTime := time.Now()
 	timeWindowEnd := currentTime.Add(1 * time.Minute)
@@ -116,7 +115,7 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 	return tasks, nil
 }
 
-func UpdateSchedulerStatus(schedule models.Scheduler, status string) error {
+func UpdateSchedulerStatus(ctx context.Context, schedule models.Scheduler, status string) error {
 	// Ensure the ID is a valid ObjectID
 	schedulerID, err := primitive.ObjectIDFromHex(schedule.ID)
 	if err != nil {
@@ -135,9 +134,9 @@ func UpdateSchedulerStatus(schedule models.Scheduler, status string) error {
 		update["$inc"] = bson.M{"run_count": 1}
 	}
 
-	// Perform the update operation
+	// Perform the update operation with context
 	filter := bson.M{"_id": schedulerID}
-	result, err := SchedulerCollection.UpdateOne(context.Background(), filter, update)
+	result, err := SchedulerCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to update scheduler with ID %v: %w", schedule.ID, err)
 	}
@@ -148,17 +147,17 @@ func UpdateSchedulerStatus(schedule models.Scheduler, status string) error {
 
 	// Handle cron rescheduling for "in-progress" status
 	if status == "in-progress" && schedule.CronExpression != "" {
-		return rescheduleCronJob(schedulerID)
+		return rescheduleCronJob(ctx, schedulerID)
 	}
 
 	fmt.Printf("Updated status to: %s for scheduler ID: %s\n", status, schedule.ID)
 	return nil
 }
 
-func rescheduleCronJob(schedulerID primitive.ObjectID) error {
-	// Find the updated schedule by ID
+func rescheduleCronJob(ctx context.Context, schedulerID primitive.ObjectID) error {
+	// Find the updated schedule by ID using the provided context
 	var updatedSchedule models.Scheduler
-	err := SchedulerCollection.FindOne(context.Background(), bson.M{"_id": schedulerID}).Decode(&updatedSchedule)
+	err := SchedulerCollection.FindOne(ctx, bson.M{"_id": schedulerID}).Decode(&updatedSchedule)
 	if err != nil {
 		return fmt.Errorf("failed to find updated schedule with ID %v: %w", schedulerID.Hex(), err)
 	}
@@ -168,22 +167,22 @@ func rescheduleCronJob(schedulerID primitive.ObjectID) error {
 	updatedSchedule.UpdatedAt = time.Now()
 	updatedSchedule.ID = "" // Reset ID to avoid conflicts
 
-	// Schedule the updated task
-	if _, err := Schedule(updatedSchedule); err != nil {
+	// Schedule the updated task with context support
+	if _, err := Schedule(ctx, updatedSchedule); err != nil {
 		return fmt.Errorf("failed to schedule cron for updated schedule with ID %v: %w", schedulerID.Hex(), err)
 	}
 
 	return nil
 }
 
-func UpdateRetries(id string) error {
+func UpdateRetries(ctx context.Context, id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return errors.New("invalid task ID")
 	}
 
 	var scheduler models.Scheduler
-	schedulerErr := SchedulerCollection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&scheduler)
+	schedulerErr := SchedulerCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&scheduler)
 	if schedulerErr != nil {
 		return errors.New("task not found")
 	}
@@ -191,7 +190,7 @@ func UpdateRetries(id string) error {
 	// Check if RetryLimit has been reached, marking failed
 	if scheduler.Retries >= scheduler.RetryLimit {
 		_, err = SchedulerCollection.UpdateOne(
-			context.Background(),
+			ctx,
 			bson.M{"_id": objectID},
 			bson.M{
 				"$set": bson.M{
@@ -205,7 +204,7 @@ func UpdateRetries(id string) error {
 
 	nextRetryTime := time.Now().Add(time.Duration(scheduler.RetryAfterInSeconds) * time.Second)
 	_, err = SchedulerCollection.UpdateOne(
-		context.Background(),
+		ctx,
 		bson.M{"_id": objectID},
 		bson.M{
 			"$inc": bson.M{"retries": 1},

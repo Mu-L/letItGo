@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,13 +13,13 @@ import (
 	"github.com/Sumit189letItGo/utils"
 )
 
-func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
+func ScheduleHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	scheduler, err := parseAndValidatePayload(w, r)
 	if err != nil {
 		return
 	}
 
-	scheduled, err := services.Schedule(*scheduler)
+	scheduled, err := services.Schedule(ctx, *scheduler)
 	if err != nil {
 		http.Error(w, "Error scheduling webhook: "+err.Error(), http.StatusInternalServerError)
 		return

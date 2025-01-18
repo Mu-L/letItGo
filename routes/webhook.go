@@ -12,5 +12,6 @@ func WebhookRoutes(router *mux.Router) {
 }
 
 func WebhookHandler(w http.ResponseWriter, r *http.Request) {
-	controllers.ScheduleHandler(w, r)
+	ctx := r.Context()
+	controllers.ScheduleHandler(ctx, w, r)
 }
