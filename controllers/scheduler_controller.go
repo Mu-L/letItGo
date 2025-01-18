@@ -84,6 +84,13 @@ func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http
 			http.Error(w, "Invalid schedule_time format", http.StatusBadRequest)
 			return nil, err
 		}
+
+		// error out if the schedule time is in the past
+		if scheduleTime.Before(time.Now().UTC()) {
+			err := errors.New("schedule_time must be in the future")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return nil, err
+		}
 		scheduler.ScheduleTime = &scheduleTime
 	}
 
