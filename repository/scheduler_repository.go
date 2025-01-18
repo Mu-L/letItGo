@@ -53,10 +53,17 @@ func Schedule(ctx context.Context, scheduler models.Scheduler) (models.Scheduler
 		return models.Scheduler{}, err
 	}
 
-	newScheduler.ID = insertedDoc.InsertedID.(primitive.ObjectID).Hex()
+	oid, ok := insertedDoc.InsertedID.(primitive.ObjectID)
+	if ok {
+		newScheduler.ID = oid.Hex()
+	} else {
+		return models.Scheduler{}, errors.New("insertedDoc.InsertedID is not of type ObjectID")
+	}
+
 	return *newScheduler, nil
 }
-func FetchPending(limit int64) ([]models.Scheduler, error) {
+
+func FetchPending(ctx context.Context, limit int64) ([]models.Scheduler, error) {
 	currentTime := time.Now()
 	timeWindowEnd := currentTime.Add(1 * time.Minute)
 
@@ -71,14 +78,14 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 	findOptions.SetLimit(limit)
 	findOptions.SetSort(bson.M{"next_run_time": 1})
 
-	cursor, err := SchedulerCollection.Find(context.Background(), filter, findOptions)
+	cursor, err := SchedulerCollection.Find(ctx, filter, findOptions)
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(context.Background())
+	defer cursor.Close(ctx)
 
 	var tasks []models.Scheduler
-	for cursor.Next(context.Background()) {
+	for cursor.Next(ctx) {
 		var task models.Scheduler
 		if err := cursor.Decode(&task); err != nil {
 			return nil, err
@@ -106,7 +113,7 @@ func FetchPending(limit int64) ([]models.Scheduler, error) {
 	}
 
 	if len(updateModels) > 0 {
-		_, err := SchedulerCollection.BulkWrite(context.Background(), updateModels)
+		_, err := SchedulerCollection.BulkWrite(ctx, updateModels)
 		if err != nil {
 			log.Printf("Bulk update error to picked: %v", err)
 		}

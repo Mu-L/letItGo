@@ -2,6 +2,7 @@ package repository
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,25 +13,37 @@ import (
 
 const (
 	systemPrompt = `
-		# INSTRUCTIONS
-		Act as a natural language to isotime or cron maker
-		- You will be given a text input
-		- You have to convert the text to a time string or cron expression
-		- If the text is a time string, return the time string in ISO format in UTC
-		- If the text is a cron expression, return the cron expression
-		- If the text is neither, return null for both
-		- Both time string and cron expression cannot be returned at the same time, one must be null
-		- Don't give anything other than the time string or cron expression
+		## **INSTRUCTIONS**
+		You will be given a natural language input, and your task is to convert it into either a time string (in ISO format) or a cron expression based on the provided text.
 
-		# OUTPUT EXAMPLE
-        {
-			timeString: ISO time string in UTC or null,
-			cronExpression: Cron expression string or null
-        }
+		- If the input is a specific time (e.g., "next Monday at 3 PM"), convert it into an ISO 8601 time string in UTC.
+		- If the input is a cron expression (e.g., "every day at 3:00 PM"), return the corresponding cron expression.
+		- If the input doesn't match either format, return null for both fields.
+		- Only one of the following should be returned: **timeString** (in ISO format in UTC) or **cronExpression**. Both cannot be returned at the same time.
+		- Only return json and nothing else.
+		- Return a JSON object with the following structure:
+			{
+				"timeString": "<ISO 8601 time string in UTC or null>",
+				"cronExpression": "<cron expression or null>"
+			}
+
+		### **Examples:**
+		- 	**Input:** "Next Monday at 3 PM"  
+		-	**Output:**
+			{
+				"timeString": "2025-01-22T15:00:00Z",
+				"cronExpression": null
+			}
+		- 	**Input:** "Every day at 3:00 PM"
+		-	**Output:**
+			{
+				"timeString": null,
+				"cronExpression": "0 15 * * *"
+			}
 		`
 )
 
-func TextToTimeOrCronExpression(text string) (string, bool, error) {
+func TextToTimeOrCronExpression(ctx context.Context, text string) (string, bool, error) {
 	url := os.Getenv("LLM_API_URL")
 	apiKey := os.Getenv("LLM_API_KEY")
 
@@ -53,12 +66,16 @@ func TextToTimeOrCronExpression(text string) (string, bool, error) {
 			},
 		},
 		"model":       "llama-3.1-70b-versatile",
-		"temperature": 1,
+		"temperature": 0,
 		"max_tokens":  100,
 		"top_p":       1,
 		"stream":      false,
 		"stop":        nil,
+		"response_format": map[string]string{
+			"type": "json_object",
+		},
 	})
+
 	if err != nil {
 		return "", false, err
 	}

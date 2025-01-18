@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -105,7 +106,7 @@ func DecryptAndConvertToJSON(encryptedData string) (interface{}, error) {
 	return []byte(decryptedPayloadStr), nil
 }
 
-func ValidateAndAssignStringField(payload map[string]interface{}, fieldName string, field *string, w http.ResponseWriter) error {
+func ValidateAndAssignStringField(ctx context.Context, payload map[string]interface{}, fieldName string, field *string, w http.ResponseWriter) error {
 	value, ok := payload[fieldName].(string)
 	if !ok {
 		err := errors.New("invalid or missing " + fieldName)
@@ -116,7 +117,7 @@ func ValidateAndAssignStringField(payload map[string]interface{}, fieldName stri
 	return nil
 }
 
-func ValidateAndAssignIntField(payload map[string]interface{}, fieldName string, field *int, w http.ResponseWriter) error {
+func ValidateAndAssignIntField(ctx context.Context, payload map[string]interface{}, fieldName string, field *int, w http.ResponseWriter) error {
 	value, ok := payload[fieldName].(int)
 	if !ok {
 		err := errors.New("invalid or missing " + fieldName)

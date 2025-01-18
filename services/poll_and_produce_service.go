@@ -40,7 +40,7 @@ func PollAndProduce(ctx context.Context) {
 			log.Println("PollAndProduce received context cancellation. Exiting...")
 			return
 		case <-ticker.C:
-			err := publishDueSchedules(writer)
+			err := publishDueSchedules(ctx, writer)
 			if err != nil {
 				log.Printf("Error publishing due schedules: %v", err)
 			}
@@ -62,8 +62,8 @@ func initKafkaWriter() *kafka.Writer {
 }
 
 // Publish due schedules to Kafka
-func publishDueSchedules(writer *kafka.Writer) error {
-	schedules, err := repository.FetchPending(int64(maxFetchPerWin))
+func publishDueSchedules(ctx context.Context, writer *kafka.Writer) error {
+	schedules, err := repository.FetchPending(ctx, int64(maxFetchPerWin))
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func publishDueSchedules(writer *kafka.Writer) error {
 
 	// Retry logic with exponential backoff
 	for attempt := 0; attempt < kafkaProducerRetries; attempt++ {
-		err = writer.WriteMessages(context.Background(), messages...)
+		err = writer.WriteMessages(ctx, messages...)
 		if err == nil {
 			log.Printf("Successfully published %d schedules to Kafka", len(messages))
 			return nil

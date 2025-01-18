@@ -19,8 +19,11 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Connect to MongoDB
-	if err := database.Connect(); err != nil {
+	if err := database.Connect(ctx); err != nil {
 		log.Fatal("Failed to connect to MongoDB:", err)
 	}
 
@@ -28,11 +31,7 @@ func main() {
 	repository.InitializeSchedulerRepository()
 
 	// Connect to Redis
-	repository.RedisConnect()
-
-	// Create a cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	repository.RedisConnect(ctx)
 
 	wg := &sync.WaitGroup{}
 

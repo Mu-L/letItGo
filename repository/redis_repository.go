@@ -11,11 +11,10 @@ import (
 )
 
 var (
-	ctx         = context.Background()
 	RedisClient *redis.Client
 )
 
-func RedisConnect() {
+func RedisConnect(ctx context.Context) {
 	redisAddrss := os.Getenv("REDIS_ADDRESS")
 	if redisAddrss == "" {
 		log.Fatal("REDIS_ADDRESS not set in environment")
@@ -26,7 +25,7 @@ func RedisConnect() {
 	if redisDB != "" {
 		db, _ = strconv.Atoi(redisDB)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     redisAddrss,

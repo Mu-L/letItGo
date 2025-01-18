@@ -14,14 +14,23 @@ import (
 )
 
 func ScheduleHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	scheduler, err := parseAndValidatePayload(w, r)
+	scheduler, err := parseAndValidatePayload(ctx, w, r)
 	if err != nil {
+		return
+	}
+
+	if scheduler == nil {
 		return
 	}
 
 	scheduled, err := services.Schedule(ctx, *scheduler)
 	if err != nil {
 		http.Error(w, "Error scheduling webhook: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if scheduled.ID == "" {
+		http.Error(w, "Failed to schedule webhook", http.StatusInternalServerError)
 		return
 	}
 
@@ -33,7 +42,7 @@ func ScheduleHandler(ctx context.Context, w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(map[string]string{"message": "Task scheduled", "time": timeStr, "cron": scheduled.CronExpression, "id": scheduled.ID})
 }
 
-func parseAndValidatePayload(w http.ResponseWriter, r *http.Request) (*models.Scheduler, error) {
+func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http.Request) (*models.Scheduler, error) {
 	var tempPayload map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&tempPayload); err != nil {
 		http.Error(w, "Invalid payload", http.StatusBadRequest)
@@ -41,10 +50,10 @@ func parseAndValidatePayload(w http.ResponseWriter, r *http.Request) (*models.Sc
 	}
 
 	scheduler := models.NewScheduler()
-	if err := utils.ValidateAndAssignStringField(tempPayload, "webhook_url", &scheduler.WebhookURL, w); err != nil {
+	if err := utils.ValidateAndAssignStringField(ctx, tempPayload, "webhook_url", &scheduler.WebhookURL, w); err != nil {
 		return nil, err
 	}
-	if err := utils.ValidateAndAssignStringField(tempPayload, "method_type", &scheduler.MethodType, w); err != nil {
+	if err := utils.ValidateAndAssignStringField(ctx, tempPayload, "method_type", &scheduler.MethodType, w); err != nil {
 		return nil, err
 	}
 
@@ -56,7 +65,7 @@ func parseAndValidatePayload(w http.ResponseWriter, r *http.Request) (*models.Sc
 	scheduler.Payload = string(payloadBytes)
 
 	if timeAsText, ok := tempPayload["time_as_text"].(string); ok {
-		timeStringOrCronExp, isCron, err := repository.TextToTimeOrCronExpression(timeAsText)
+		timeStringOrCronExp, isCron, err := repository.TextToTimeOrCronExpression(ctx, timeAsText)
 		if err != nil || timeStringOrCronExp == "" {
 			http.Error(w, "Failed to convert text to time string or cron expression", http.StatusBadRequest)
 			return nil, err

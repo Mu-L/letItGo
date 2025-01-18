@@ -12,18 +12,18 @@ import (
 
 var DB *mongo.Client
 
-func Connect() error {
+func Connect(ctx context.Context) error {
 	uri := os.Getenv("MONGODB_URI")
 	if uri == "" {
 		log.Fatal("MONGODB_URI not set in environment")
 	}
 	clientOptions := options.Client().ApplyURI(uri)
-	client, err := mongo.Connect(context.Background(), clientOptions)
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	err = client.Ping(ctx, nil)
 	if err != nil {
