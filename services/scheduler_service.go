@@ -54,12 +54,12 @@ func Schedule(ctx context.Context, scheduler models.Scheduler) (models.Scheduler
 	return scheduled, nil
 }
 
-func FetchPendingSchedules(limit int64) ([]models.Scheduler, error) {
+func FetchPendingSchedules(ctx context.Context, limit int64) ([]models.Scheduler, error) {
 	if limit <= 0 {
 		return nil, errors.New("limit must be greater than zero")
 	}
 
-	tasks, err := repository.FetchPending(limit)
+	tasks, err := repository.FetchPending(ctx, limit)
 	if err != nil {
 		return nil, err
 	}
