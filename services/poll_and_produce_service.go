@@ -2,24 +2,29 @@ package services
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"github.com/Sumit189letItGo/repository"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/aws_msk_iam_v2"
 )
 
 const (
 	fetchWindow          = 5 * time.Second
 	maxFetchPerWin       = 1000
-	kafkaBroker          = "localhost:9092"
 	kafkaTopic           = "scheduled_tasks"
 	kafkaProducerRetries = 3
 	kafkaBatchSize       = 100
 	kafkaBatchTimeout    = 10 * time.Millisecond
 	cacheWindow          = 10 * time.Minute
 )
+
+var kafkaBroker = os.Getenv("KAFKA_BROKER")
 
 func PollAndProduce(ctx context.Context) {
 	log.Println("Starting Producer Service...")
@@ -50,6 +55,19 @@ func PollAndProduce(ctx context.Context) {
 
 // Initialize Kafka writer
 func initKafkaWriter() *kafka.Writer {
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-south-1"))
+	if err != nil {
+		log.Fatalf("unable to load AWS config, %v", err)
+	}
+
+	mechanism := aws_msk_iam_v2.NewMechanism(cfg)
+	dialer := &kafka.Dialer{
+		Timeout:       10 * time.Second,
+		DualStack:     true,
+		TLS:           &tls.Config{},
+		SASLMechanism: mechanism,
+	}
+
 	return &kafka.Writer{
 		Addr:         kafka.TCP(kafkaBroker),
 		Topic:        kafkaTopic,
@@ -58,6 +76,9 @@ func initKafkaWriter() *kafka.Writer {
 		Async:        false,
 		BatchSize:    kafkaBatchSize,
 		BatchTimeout: kafkaBatchTimeout,
+		Transport: &kafka.Transport{
+			Dial: dialer.DialFunc,
+		},
 	}
 }
 
