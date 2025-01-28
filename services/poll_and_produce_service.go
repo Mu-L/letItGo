@@ -29,7 +29,7 @@ type MSKAccessTokenProvider struct {
 }
 
 func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
-	token, _, err := signer.GenerateAuthToken(context.TODO(), "<region>")
+	token, _, err := signer.GenerateAuthToken(context.TODO(), "ap-south-1")
 	return &sarama.AccessToken{Token: token}, err
 }
 
