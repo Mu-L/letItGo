@@ -8,10 +8,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/Sumit189letItGo/repository"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/sasl/aws_msk_iam_v2"
+	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 )
 
 const (
@@ -24,15 +23,48 @@ const (
 	cacheWindow          = 10 * time.Minute
 )
 
-var kafkaBroker = os.Getenv("KAFKA_BROKER")
+var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
+
+type MSKAccessTokenProvider struct {
+}
+
+func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
+	token, _, err := signer.GenerateAuthToken(context.TODO(), "<region>")
+	return &sarama.AccessToken{Token: token}, err
+}
+
+func setupProducer(brokers []string) (sarama.AsyncProducer, error) {
+	config := sarama.NewConfig()
+	config.Producer.RequiredAcks = sarama.WaitForAll
+	config.Producer.Retry.Max = 5
+	config.Producer.Return.Successes = true
+
+	config.Net.SASL.Enable = true
+	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+	config.Net.SASL.TokenProvider = &MSKAccessTokenProvider{}
+
+	config.Net.TLS.Enable = true
+	config.Net.TLS.Config = &tls.Config{
+		InsecureSkipVerify: false,
+	}
+
+	producer, err := sarama.NewAsyncProducer(brokers, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return producer, nil
+}
 
 func PollAndProduce(ctx context.Context) {
 	log.Println("Starting Producer Service...")
-
-	writer := initKafkaWriter()
+	producer, err := setupProducer(kafkaBrokers)
+	if err != nil {
+		log.Fatalf("Failed to setup Kafka producer: %v", err)
+	}
 	defer func() {
-		if err := writer.Close(); err != nil {
-			log.Printf("Error closing Kafka writer: %v", err)
+		if err := producer.Close(); err != nil {
+			log.Printf("Error closing Kafka producer: %v", err)
 		}
 	}()
 
@@ -45,7 +77,7 @@ func PollAndProduce(ctx context.Context) {
 			log.Println("PollAndProduce received context cancellation. Exiting...")
 			return
 		case <-ticker.C:
-			err := publishDueSchedules(ctx, writer)
+			err := publishDueSchedules(ctx, producer)
 			if err != nil {
 				log.Printf("Error publishing due schedules: %v", err)
 			}
@@ -53,37 +85,8 @@ func PollAndProduce(ctx context.Context) {
 	}
 }
 
-// Initialize Kafka writer
-func initKafkaWriter() *kafka.Writer {
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-south-1"))
-	if err != nil {
-		log.Fatalf("unable to load AWS config, %v", err)
-	}
-
-	mechanism := aws_msk_iam_v2.NewMechanism(cfg)
-	dialer := &kafka.Dialer{
-		Timeout:       10 * time.Second,
-		DualStack:     true,
-		TLS:           &tls.Config{},
-		SASLMechanism: mechanism,
-	}
-
-	return &kafka.Writer{
-		Addr:         kafka.TCP(kafkaBroker),
-		Topic:        kafkaTopic,
-		Balancer:     &kafka.LeastBytes{},
-		RequiredAcks: kafka.RequireOne,
-		Async:        false,
-		BatchSize:    kafkaBatchSize,
-		BatchTimeout: kafkaBatchTimeout,
-		Transport: &kafka.Transport{
-			Dial: dialer.DialFunc,
-		},
-	}
-}
-
-// Publish due schedules to Kafka
-func publishDueSchedules(ctx context.Context, writer *kafka.Writer) error {
+func publishDueSchedules(ctx context.Context, producer sarama.AsyncProducer) error {
+	log.Println("Fetching pending schedules...")
 	schedules, err := repository.FetchPending(ctx, int64(maxFetchPerWin))
 	if err != nil {
 		return err
@@ -93,7 +96,6 @@ func publishDueSchedules(ctx context.Context, writer *kafka.Writer) error {
 		return nil
 	}
 
-	var messages []kafka.Message
 	for _, schedule := range schedules {
 		bytes, err := json.Marshal(schedule)
 		if err != nil {
@@ -101,24 +103,14 @@ func publishDueSchedules(ctx context.Context, writer *kafka.Writer) error {
 			continue
 		}
 
-		msg := kafka.Message{
-			Key:   []byte(schedule.ID),
-			Value: bytes,
-			Time:  time.Now(),
+		msg := &sarama.ProducerMessage{
+			Topic: kafkaTopic,
+			Key:   sarama.StringEncoder(schedule.ID),
+			Value: sarama.ByteEncoder(bytes),
 		}
-		messages = append(messages, msg)
+
+		producer.Input() <- msg
 	}
 
-	// Retry logic with exponential backoff
-	for attempt := 0; attempt < kafkaProducerRetries; attempt++ {
-		err = writer.WriteMessages(ctx, messages...)
-		if err == nil {
-			log.Printf("Successfully published %d schedules to Kafka", len(messages))
-			return nil
-		}
-		log.Printf("Attempt %d: Failed to publish schedules: %v", attempt+1, err)
-		time.Sleep(time.Duration(attempt+1) * time.Second) // Exponential backoff
-	}
-
-	return err
+	return nil
 }
