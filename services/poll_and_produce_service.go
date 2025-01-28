@@ -108,8 +108,8 @@ func publishDueSchedules(ctx context.Context, producer sarama.AsyncProducer) err
 			Key:   sarama.StringEncoder(schedule.ID),
 			Value: sarama.ByteEncoder(bytes),
 		}
-
 		producer.Input() <- msg
+		log.Printf("Published schedule ID %s to Kafka", schedule.ID)
 	}
 
 	return nil
