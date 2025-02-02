@@ -10,10 +10,12 @@ import (
 
 	"github.com/Sumit189/letItGo/common/database"
 	"github.com/Sumit189/letItGo/common/repository"
+	"github.com/Sumit189/letItGo/common/utils"
 	"github.com/Sumit189/letItGo/consumer/services"
 )
 
 func main() {
+	utils.LoggerInit("./consumer.log")
 	consumerAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  

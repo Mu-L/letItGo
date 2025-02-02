@@ -12,12 +12,14 @@ import (
 
 	"github.com/Sumit189/letItGo/common/database"
 	"github.com/Sumit189/letItGo/common/repository"
+	"github.com/Sumit189/letItGo/common/utils"
 	"github.com/Sumit189/letItGo/webhook/routes"
 
 	"github.com/gorilla/mux"
 )
 
 func main() {
+	utils.LoggerInit("./api.log")
 	webhookAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
