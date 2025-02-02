@@ -9,12 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/joho/godotenv"
 )
 
 var (
@@ -23,17 +20,12 @@ var (
 )
 
 func init() {
-	err := godotenv.Load("../.env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
 	key := os.Getenv("PAYLOAD_ENCRYPTION_KEY")
 	if key == "" {
 		panic("PAYLOAD_ENCRYPTION_KEY environment variable is not set")
 	}
 	encryptionKey = []byte(key)
-	block, err = aes.NewCipher(encryptionKey)
+	_, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		panic("Failed to create cipher block: " + err.Error())
 	}
