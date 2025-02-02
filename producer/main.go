@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	utils.LoggerInit("./producer.log")
+	utils.LoggerInit("../logs/producer.log")
 	producerAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
