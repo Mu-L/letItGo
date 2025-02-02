@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	utils.LoggerInit("../logs/api.log")
+	utils.LoggerInit("api.log")
 	webhookAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
