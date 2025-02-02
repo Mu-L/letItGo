@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Sumit189/letItGo/api/routes"
 	"github.com/Sumit189/letItGo/common/database"
 	"github.com/Sumit189/letItGo/common/repository"
 	common_services "github.com/Sumit189/letItGo/common/services"
 	"github.com/Sumit189/letItGo/common/utils"
-	"github.com/Sumit189/letItGo/webhook/routes"
 
 	"github.com/gorilla/mux"
 )
@@ -40,6 +40,8 @@ func main() {
 	`
 	log.Println(webhookAsciiArt)
 	common_services.LiftENV()
+	utils.AESInit()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -50,13 +52,14 @@ func main() {
 
 	// Initialize scheduler and connect to Redis
 	repository.InitializeSchedulerRepository()
+	repository.InitializeVerifiedWebhooksRepository()
 	repository.RedisConnect(ctx)
 
 	wg := &sync.WaitGroup{}
 
 	// Router
 	router := mux.NewRouter()
-	routes.WebhookRoutes(router)
+	routes.ApiRoutes(router)
 
 	// Create and start HTTP server
 	server := &http.Server{
