@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Sumit189letItGo/models"
-	"github.com/Sumit189letItGo/repository"
-	"github.com/Sumit189letItGo/utils"
+	"github.com/Sumit189/letItGo/common/models"
+	"github.com/Sumit189/letItGo/common/repository"
+	"github.com/Sumit189/letItGo/common/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -54,19 +54,6 @@ func Schedule(ctx context.Context, scheduler models.Scheduler) (models.Scheduler
 	return scheduled, nil
 }
 
-func FetchPendingSchedules(ctx context.Context, limit int64) ([]models.Scheduler, error) {
-	if limit <= 0 {
-		return nil, errors.New("limit must be greater than zero")
-	}
-
-	tasks, err := repository.FetchPending(ctx, limit)
-	if err != nil {
-		return nil, err
-	}
-
-	return tasks, nil
-}
-
 func markProcessed(ctx context.Context, schedule models.Scheduler) {
 	id := schedule.ID
 	pipe := repository.RedisClient.TxPipeline()
@@ -80,25 +67,17 @@ func markProcessed(ctx context.Context, schedule models.Scheduler) {
 		return
 	}
 
-	// Mark as completed
-	err = repository.UpdateSchedulerStatus(ctx, schedule, "completed")
+	// Clone the doc to Archive collection with status completed
+	err = repository.SendToArchive(ctx, schedule, "completed")
 	if err != nil {
-		log.Printf("Error updating status: %v", err)
+		log.Printf("Error sending to archive: %v", err)
 	}
 }
 
-func executeWebhook(ctx context.Context, scheduleId string) error {
-	var schedule models.Scheduler
-	scheduleObjectID, err := primitive.ObjectIDFromHex(scheduleId)
+func executeWebhook(ctx context.Context, schedule models.Scheduler) error {
+	scheduleObjectID, err := primitive.ObjectIDFromHex(schedule.ID)
 	if err != nil {
 		log.Printf("Invalid schedule ID: %v", err)
-		return err
-	}
-
-	err = repository.SchedulerCollection.FindOne(ctx, bson.M{"_id": scheduleObjectID}).Decode(&schedule)
-	if err != nil {
-		log.Printf("Error decoding schedule: %v", err)
-		return err
 	}
 
 	for {
@@ -114,7 +93,7 @@ func executeWebhook(ctx context.Context, scheduleId string) error {
 		payloadBytes, err := utils.DecryptAndConvertToJSON(schedule.Payload)
 		if err != nil {
 			log.Printf("Error decrypting payload: %v", err)
-			if updateErr := repository.UpdateRetries(ctx, schedule.ID); updateErr != nil {
+			if updateErr := repository.UpdateRetries(ctx, schedule); updateErr != nil {
 				log.Printf("Error updating retries: %v", updateErr)
 				return updateErr
 			}
@@ -131,7 +110,7 @@ func executeWebhook(ctx context.Context, scheduleId string) error {
 		resp, err := sharedClient.Do(req)
 		if err != nil {
 			log.Printf("HTTP request error: %v", err)
-			if updateErr := repository.UpdateRetries(ctx, schedule.ID); updateErr != nil {
+			if updateErr := repository.UpdateRetries(ctx, schedule); updateErr != nil {
 				log.Printf("Error updating retries: %v", updateErr)
 				return updateErr
 			}
@@ -152,7 +131,7 @@ func executeWebhook(ctx context.Context, scheduleId string) error {
 
 		if schedule.WebhookRetryCount >= schedule.WebhookRetryLimit {
 			log.Printf("Webhook retry limit reached for schedule ID %s", schedule.ID)
-			if err := repository.UpdateRetries(ctx, schedule.ID); err != nil {
+			if err := repository.UpdateRetries(ctx, schedule); err != nil {
 				log.Printf("Error updating retries: %v", err)
 				return err
 			}

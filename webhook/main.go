@@ -10,15 +10,32 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sumit189letItGo/database"
-	"github.com/Sumit189letItGo/repository"
-	"github.com/Sumit189letItGo/routes"
-	"github.com/Sumit189letItGo/services"
+	"github.com/Sumit189/letItGo/common/database"
+	"github.com/Sumit189/letItGo/common/repository"
+	"github.com/Sumit189/letItGo/webhook/routes"
 
 	"github.com/gorilla/mux"
 )
 
 func main() {
+	webhookAsciiArt := `
+	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
+	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
+	 ##       ##        ##        ##      ##     ##       ##   ##  
+	 ##       ## ##     ##        ##      ##     ##  ###  ##   ##  
+	 ##       ##        ##        ##      ##     ##   ##  ##   ##  
+	 ##  ##   ##  ##    ##        ##      ##     ##   ##  ##   ##  
+	### ###  ### ###   ####      ####    ####     ## ##    ## ##   
+																   
+	  ##     ### ##     ####   
+	   ##     ##  ##     ##    
+	 ## ##    ##  ##     ##    
+	 ##  ##   ##  ##     ##    
+	 ## ###   ## ##      ##    
+	 ##  ##   ##         ##    
+	###  ##  ####       ####   
+	`
+	log.Println(webhookAsciiArt)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -27,32 +44,22 @@ func main() {
 		log.Fatal("Failed to connect to MongoDB:", err)
 	}
 
-	// Initialize scheduler only after successful DB connection
+	// Initialize scheduler and connect to Redis
 	repository.InitializeSchedulerRepository()
-
-	// Connect to Redis
 	repository.RedisConnect(ctx)
 
 	wg := &sync.WaitGroup{}
-
-	// Start the polling service
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		services.PollAndProduce(ctx)
-	}()
 
 	// Router
 	router := mux.NewRouter()
 	routes.WebhookRoutes(router)
 
-	// Create HTTP server
+	// Create and start HTTP server
 	server := &http.Server{
 		Addr:    ":8081",
 		Handler: router,
 	}
 
-	// Start HTTP server in a goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -62,28 +69,21 @@ func main() {
 		}
 	}()
 
-	// Channel to listen for interrupt or terminate signals
+	// Handle shutdown signals
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, os.Interrupt, syscall.SIGTERM)
-
-	// Block until a signal is received
 	<-sigchan
 	log.Println("Shutdown signal received")
 
-	// Create a deadline to wait for shutdown
+	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
-
-	// Attempt graceful shutdown of the HTTP server
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("Server Shutdown Failed:%+v", err)
 	}
 	log.Println("HTTP server stopped gracefully")
 
-	// Cancel the main context to signal all goroutines to stop
 	cancel()
-
-	// Wait for all goroutines to finish
 	wg.Wait()
 	log.Println("All services stopped gracefully")
 }

@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Sumit189letItGo/database"
-	"github.com/Sumit189letItGo/models"
+	"github.com/Sumit189/letItGo/common/database"
+	"github.com/Sumit189/letItGo/common/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -157,7 +157,6 @@ func UpdateSchedulerStatus(ctx context.Context, schedule models.Scheduler, statu
 		return rescheduleCronJob(ctx, schedulerID)
 	}
 
-	fmt.Printf("Updated status to: %s for scheduler ID: %s\n", status, schedule.ID)
 	return nil
 }
 
@@ -182,37 +181,22 @@ func rescheduleCronJob(ctx context.Context, schedulerID primitive.ObjectID) erro
 	return nil
 }
 
-func UpdateRetries(ctx context.Context, id string) error {
-	objectID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return errors.New("invalid task ID")
-	}
-
-	var scheduler models.Scheduler
-	schedulerErr := SchedulerCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&scheduler)
-	if schedulerErr != nil {
-		return errors.New("task not found")
-	}
+func UpdateRetries(ctx context.Context, schedule models.Scheduler) error {
+	scheduleID, err := primitive.ObjectIDFromHex(schedule.ID)
 
 	// Check if RetryLimit has been reached, marking failed
-	if scheduler.Retries >= scheduler.RetryLimit {
-		_, err = SchedulerCollection.UpdateOne(
-			ctx,
-			bson.M{"_id": objectID},
-			bson.M{
-				"$set": bson.M{
-					"status":     "failed",
-					"updated_at": time.Now(),
-				},
-			},
-		)
+	if schedule.Retries >= schedule.RetryLimit {
+		err = SendToArchive(ctx, schedule, "failed")
+		if err != nil {
+			log.Printf("Error sending to archive: %v", err)
+		}
 		return errors.New("retry limit reached")
 	}
 
-	nextRetryTime := time.Now().Add(time.Duration(scheduler.RetryAfterInSeconds) * time.Second)
+	nextRetryTime := time.Now().Add(time.Duration(schedule.RetryAfterInSeconds) * time.Second)
 	_, err = SchedulerCollection.UpdateOne(
 		ctx,
-		bson.M{"_id": objectID},
+		bson.M{"_id": scheduleID},
 		bson.M{
 			"$inc": bson.M{"retries": 1},
 			"$set": bson.M{

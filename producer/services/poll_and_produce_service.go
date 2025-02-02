@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/Sumit189letItGo/repository"
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 )
 
@@ -70,7 +69,9 @@ func PollAndProduce(ctx context.Context) {
 
 	ticker := time.NewTicker(fetchWindow)
 	defer ticker.Stop()
-
+	log.Println("Started Producer Service...")
+	log.Println("__________________________")
+	log.Println("Polling and producing schedules...")
 	for {
 		select {
 		case <-ctx.Done():
@@ -87,7 +88,7 @@ func PollAndProduce(ctx context.Context) {
 
 func publishDueSchedules(ctx context.Context, producer sarama.AsyncProducer) error {
 	log.Println("Fetching pending schedules...")
-	schedules, err := repository.FetchPending(ctx, int64(maxFetchPerWin))
+	schedules, err := FetchPendingSchedules(ctx, int64(maxFetchPerWin))
 	if err != nil {
 		return err
 	}

@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Sumit189letItGo/models"
-	"github.com/Sumit189letItGo/repository"
-	"github.com/Sumit189letItGo/services"
-	"github.com/Sumit189letItGo/utils"
+	"github.com/Sumit189/letItGo/common/models"
+	"github.com/Sumit189/letItGo/common/repository"
+	"github.com/Sumit189/letItGo/common/utils"
+	"github.com/Sumit189/letItGo/consumer/services"
 )
 
 func ScheduleHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
