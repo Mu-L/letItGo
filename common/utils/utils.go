@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/Sumit189/letItGo/common/services"
 )
 
 var (
@@ -20,6 +22,7 @@ var (
 )
 
 func init() {
+	services.LiftENV()
 	key := os.Getenv("PAYLOAD_ENCRYPTION_KEY")
 	if key == "" {
 		panic("PAYLOAD_ENCRYPTION_KEY environment variable is not set")
