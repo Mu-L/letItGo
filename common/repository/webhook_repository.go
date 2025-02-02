@@ -12,7 +12,7 @@ import (
 var VerifiedWebhooks *mongo.Collection
 
 func InitializeVerifiedWebhooksRepository() {
-	VerifiedWebhooks = database.GetCollection("verified_webhooks")
+	VerifiedWebhooks = database.GetCollection("verifiedwebhooks")
 }
 
 func IsVerifiedWebhook(ctx context.Context, webhookURL string, methodType string) bool {
