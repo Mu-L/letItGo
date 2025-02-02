@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	utils.LoggerInit("../logs/consumer.log")
+	utils.LoggerInit("consumer.log")
 	consumerAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
