@@ -12,6 +12,7 @@ import (
 
 	"github.com/Sumit189/letItGo/api/routes"
 	"github.com/Sumit189/letItGo/common/database"
+	"github.com/Sumit189/letItGo/common/models"
 	"github.com/Sumit189/letItGo/common/repository"
 	common_services "github.com/Sumit189/letItGo/common/services"
 	"github.com/Sumit189/letItGo/common/utils"
@@ -54,6 +55,7 @@ func main() {
 	repository.InitializeSchedulerRepository()
 	repository.InitializeVerifiedWebhooksRepository()
 	repository.RedisConnect(ctx)
+	models.CreateIndexes(ctx)
 
 	wg := &sync.WaitGroup{}
 
