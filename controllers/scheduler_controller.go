@@ -78,6 +78,8 @@ func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http
 		}
 	}
 
+	// set time 10 sec from now to test
+	tempPayload["schedule_time"] = time.Now().Add(10 * time.Second).UTC().Format(time.RFC3339)
 	if scheduleTimeStr, ok := tempPayload["schedule_time"].(string); ok {
 		scheduleTime, err := time.Parse(time.RFC3339, scheduleTimeStr)
 		if err != nil {
