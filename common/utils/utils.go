@@ -12,8 +12,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/Sumit189/letItGo/common/services"
 )
 
 var (
@@ -21,14 +19,14 @@ var (
 	block         cipher.Block
 )
 
-func init() {
-	services.LiftENV()
+func AESInit() {
 	key := os.Getenv("PAYLOAD_ENCRYPTION_KEY")
 	if key == "" {
 		panic("PAYLOAD_ENCRYPTION_KEY environment variable is not set")
 	}
 	encryptionKey = []byte(key)
-	_, err := aes.NewCipher(encryptionKey)
+	var err error
+	block, err = aes.NewCipher(encryptionKey)
 	if err != nil {
 		panic("Failed to create cipher block: " + err.Error())
 	}
