@@ -35,7 +35,10 @@ func main() {
 	 ## ##    ## ##   ###  ##   ## ##    ## ##   ##   ##  ### ###  #### ##  
 	`
 	log.Println(consumerAsciiArt)
+
 	common_services.LiftENV()
+	utils.AESInit()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
