@@ -2,9 +2,14 @@ package controllers
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Sumit189/letItGo/common/models"
@@ -57,6 +62,13 @@ func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http
 		return nil, err
 	}
 
+	// check if webhook_url and method_type are valid
+	IsVerifiedWebhook := repository.IsVerifiedWebhook(ctx, scheduler.WebhookURL, scheduler.MethodType)
+	if !IsVerifiedWebhook {
+		http.Error(w, "Webhook is not verified", http.StatusBadRequest)
+		return nil, errors.New("Webhook is not verified")
+	}
+
 	payloadBytes, err := json.Marshal(tempPayload["payload"])
 	if err != nil {
 		http.Error(w, "Failed to encode payload", http.StatusInternalServerError)
@@ -78,8 +90,6 @@ func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http
 		}
 	}
 
-	// set time 10 sec from now to test
-	tempPayload["schedule_time"] = time.Now().Add(10 * time.Second).UTC().Format(time.RFC3339)
 	if scheduleTimeStr, ok := tempPayload["schedule_time"].(string); ok {
 		scheduleTime, err := time.Parse(time.RFC3339, scheduleTimeStr)
 		if err != nil {
@@ -120,4 +130,80 @@ func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http
 	}
 
 	return scheduler, nil
+}
+
+func VerifyWebhookHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	var payload map[string]interface{}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Println("Payload: ", payload)
+
+	if len(payload) == 0 {
+		http.Error(w, "Empty payload", http.StatusBadRequest)
+		return
+	}
+
+	webhookURL := payload["webhook_url"].(string)
+	if webhookURL == "" {
+		http.Error(w, "Missing webhook URL", http.StatusBadRequest)
+		return
+	}
+
+	methodType := payload["method_type"].(string)
+	if methodType == "" {
+		http.Error(w, "Missing method type: [\"GET\", \"POST\"]", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the webhook URL is already verified
+	isVerified := repository.IsVerifiedWebhook(ctx, webhookURL, methodType)
+	if isVerified {
+		http.Error(w, "Webhook already verified", http.StatusBadRequest)
+		return
+	}
+
+	secretKey := os.Getenv("WEBHOOK_SECRET_KEY")
+
+	// Generate the signature based on the webhook URL
+	secureSignature := GenerateSignature(webhookURL, secretKey)
+
+	// Create the HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", webhookURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// check headers for the signature
+	// Compare the signatures
+	signature := resp.Header.Get("X-Webhook-Signature")
+	if secureSignature != signature {
+		http.Error(w, "Webhook verification failed", http.StatusBadRequest)
+		return
+	}
+
+	repository.AddVerifiedWebhook(ctx, webhookURL, methodType)
+
+	// Respond with a success message after one-time verification
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Webhook successfully verified"))
+}
+
+func GenerateSignature(url, secretKey string) string {
+	// Create a secure signature using HMAC with SHA256
+	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac.Write([]byte(url))
+	return hex.EncodeToString(mac.Sum(nil))
 }

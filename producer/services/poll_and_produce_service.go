@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/Sumit189/letItGo/common/repository"
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
 )
 
@@ -20,6 +21,7 @@ const (
 	kafkaBatchSize       = 100
 	kafkaBatchTimeout    = 10 * time.Millisecond
 	cacheWindow          = 10 * time.Minute
+	expireScheduleWindow = 10 * time.Minute
 )
 
 var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
@@ -68,7 +70,11 @@ func PollAndProduce(ctx context.Context) {
 	}()
 
 	ticker := time.NewTicker(fetchWindow)
+	expireTicker := time.NewTicker(expireScheduleWindow)
+
 	defer ticker.Stop()
+	defer expireTicker.Stop()
+
 	log.Println("Started Producer Service...")
 	log.Println("__________________________")
 	log.Println("Polling and producing schedules...")
@@ -82,12 +88,16 @@ func PollAndProduce(ctx context.Context) {
 			if err != nil {
 				log.Printf("Error publishing due schedules: %v", err)
 			}
+		case <-expireTicker.C:
+			err := repository.ExpireSchedules(ctx)
+			if err != nil {
+				log.Printf("Error expiring schedules: %v", err)
+			}
 		}
 	}
 }
 
 func publishDueSchedules(ctx context.Context, producer sarama.AsyncProducer) error {
-	log.Println("Fetching pending schedules...")
 	schedules, err := FetchPendingSchedules(ctx, int64(maxFetchPerWin))
 	if err != nil {
 		return err

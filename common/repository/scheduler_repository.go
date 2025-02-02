@@ -68,9 +68,19 @@ func FetchPending(ctx context.Context, limit int64) ([]models.Scheduler, error) 
 	timeWindowEnd := currentTime.Add(1 * time.Minute)
 
 	filter := bson.M{
-		"status": "pending",
-		"next_run_time": bson.M{
-			"$lte": timeWindowEnd,
+		"$or": []bson.M{
+			{
+				"status": "pending",
+				"next_run_time": bson.M{
+					"$lte": timeWindowEnd,
+				},
+			},
+			{
+				"status": "processing",
+				"next_run_time": bson.M{
+					"$gte": time.Now().Add(-5 * time.Minute),
+				},
+			},
 		},
 	}
 
@@ -209,5 +219,71 @@ func UpdateRetries(ctx context.Context, schedule models.Scheduler) error {
 	if err != nil {
 		return errors.New("error updating retries")
 	}
+	return nil
+}
+
+func ExpireSchedules(ctx context.Context) error {
+	findOptions := bson.M{
+		"$or": []bson.M{
+			{
+				"status": bson.M{
+					"$nin": []string{"completed", "failed"},
+				},
+				"next_run_time": bson.M{
+					"$gte": time.Now().Add(-10 * time.Minute),
+					"$lt":  time.Now().Add(-5 * time.Minute),
+				},
+			},
+		},
+	}
+
+	cursor, err := SchedulerCollection.Find(ctx, findOptions)
+	if err != nil {
+		return err
+	}
+
+	var deadSchedules []models.Scheduler
+	for cursor.Next(ctx) {
+		var schedule models.Scheduler
+		if err := cursor.Decode(&schedule); err != nil {
+			return err
+		}
+		deadSchedules = append(deadSchedules, schedule)
+	}
+	if err := cursor.Err(); err != nil {
+		return err
+	}
+
+	// Mark all dead schedules as failed
+	updateModels := []mongo.WriteModel{}
+
+	for _, schedule := range deadSchedules {
+		objectID, err := primitive.ObjectIDFromHex(schedule.ID)
+		if err != nil {
+			return fmt.Errorf("invalid task ID: %v", err)
+		}
+		updateFilter := bson.M{"_id": objectID}
+		update := bson.M{"$set": bson.M{"status": "failed"}}
+
+		updateModel := mongo.NewUpdateOneModel().
+			SetFilter(updateFilter).
+			SetUpdate(update)
+		updateModels = append(updateModels, updateModel)
+	}
+
+	if len(updateModels) > 0 {
+		_, err := SchedulerCollection.BulkWrite(ctx, updateModels)
+		if err != nil {
+			log.Printf("Bulk update error to picked: %v", err)
+		}
+
+		for _, schedule := range deadSchedules {
+			err = SendToArchive(ctx, schedule, "failed")
+			if err != nil {
+				log.Printf("Error sending to archive: %v", err)
+			}
+		}
+	}
+
 	return nil
 }
