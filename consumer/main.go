@@ -11,6 +11,7 @@ import (
 	"github.com/Sumit189/letItGo/common/database"
 	"github.com/Sumit189/letItGo/common/repository"
 	common_services "github.com/Sumit189/letItGo/common/services"
+	"github.com/Sumit189/letItGo/common/utils"
 	"github.com/Sumit189/letItGo/consumer/services"
 )
 
@@ -34,6 +35,7 @@ func main() {
 	`
 	log.Println(consumerAsciiArt)
 	common_services.LiftENV()
+	utils.AESInit()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
