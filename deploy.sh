@@ -33,26 +33,26 @@ EOF
 
 # Move binaries to /usr/local/bin
 echo "Moving binaries to /usr/local/bin..."
-sudo mv "$BUILD_DIR/letItGo-api" "$BIN_DIR/"
-sudo mv "$BUILD_DIR/letItGo-producer" "$BIN_DIR/"
-sudo mv "$BUILD_DIR/letItGo-consumer" "$BIN_DIR/"
+sudo cp "$BUILD_DIR/api" "$BIN_DIR/"
+sudo cp "$BUILD_DIR/producer" "$BIN_DIR/"
+sudo cp "$BUILD_DIR/consumer" "$BIN_DIR/"
 
 # Create systemd service files
 echo "Creating systemd service files..."
-create_systemd_service "letItGo-api"
-create_systemd_service "letItGo-producer"
-create_systemd_service "letItGo-consumer"
+create_systemd_service "api"
+create_systemd_service "producer"
+create_systemd_service "consumer"
 
 # Reload systemd, enable and start services
 echo "Reloading systemd and starting services..."
 sudo systemctl daemon-reload
-sudo systemctl enable letItGo-api.service letItGo-producer.service letItGo-consumer.service
-sudo systemctl start letItGo-api.service letItGo-producer.service letItGo-consumer.service
+sudo systemctl enable api.service producer.service consumer.service
+sudo systemctl start api.service producer.service consumer.service
 
 # Check status
 echo "Checking service statuses..."
-sudo systemctl status letItGo-api.service
-sudo systemctl status letItGo-producer.service
-sudo systemctl status letItGo-consumer.service
+sudo systemctl status api.service
+sudo systemctl status producer.service
+sudo systemctl status consumer.service
 
 echo "Deployment complete!"
