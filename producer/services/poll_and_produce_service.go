@@ -24,8 +24,6 @@ const (
 	expireScheduleWindow = 10 * time.Minute
 )
 
-var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
-
 type MSKAccessTokenProvider struct {
 }
 
@@ -58,6 +56,7 @@ func setupProducer(brokers []string) (sarama.AsyncProducer, error) {
 }
 
 func PollAndProduce(ctx context.Context) {
+	var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
 	log.Println("Starting Producer Service...")
 	producer, err := setupProducer(kafkaBrokers)
 	if err != nil {

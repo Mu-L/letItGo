@@ -111,7 +111,7 @@ func parseAndValidatePayload(ctx context.Context, w http.ResponseWriter, r *http
 	}
 
 	if scheduler.ScheduleTime == nil && scheduler.CronExpression == "" {
-		err := errors.New("either ScheduleTime or CronExpression must be provided")
+		err := errors.New("either schedule_time or cron_expression must be provided")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return nil, err
 	}
