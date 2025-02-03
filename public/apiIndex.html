@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>LetItGo</title>
+  <link rel="stylesheet" href="https://public.codepenassets.com/css/normalize-5.0.0.min.css">
+  <link rel='stylesheet' href='https://codepen.io/denic/pen/YzyPzKG.css'>
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css'>
+  <link rel="stylesheet" href="./style.css">
+
+</head>
+<style>
+  .wrapper {
+    height: 100vh;
+    display: grid;
+    place-items: center;
+  }
+
+  .typing-demo {
+    width: 68vw;
+    animation: typing 2.5s steps(22), blink .5s step-end infinite alternate;
+    white-space: nowrap;
+    overflow: hidden;
+    border-right: 3px solid;
+    font-family: monospace;
+    font-size: 2em;
+  }
+
+  @keyframes typing {
+    from {
+      width: 0
+    }
+  }
+
+  @keyframes blink {
+    50% {
+      border-color: transparent
+    }
+  }
+</style>
+
+<body>
+  <div class="wrapper">
+    <div class="typing-demo">
+      This is an API, not a museum—no need to admire, just hit it! 🚀
+    </div>
+  </div>
+</body>
+
+</html>
