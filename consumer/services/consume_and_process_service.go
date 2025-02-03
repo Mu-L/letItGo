@@ -34,8 +34,6 @@ const (
 	cacheWindow             = 5 * time.Minute
 )
 
-var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
-
 // ScheduleHeap is a min-heap based on NextRunTime
 type ScheduleHeap []models.Scheduler
 
@@ -64,6 +62,7 @@ func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 }
 
 func initKafkaReader() (sarama.ConsumerGroup, error) {
+	var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_1_0_0
 	config.Net.SASL.Enable = true
