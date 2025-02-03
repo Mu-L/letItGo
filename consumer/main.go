@@ -11,7 +11,7 @@ import (
 	"github.com/Sumit189/letItGo/common/database"
 	"github.com/Sumit189/letItGo/common/repository"
 	common_services "github.com/Sumit189/letItGo/common/services"
-	"github.com/Sumit189/letItGo/common/utils"
+	"github.com/Sumit189/letItGo/consumer/services"
 )
 
 func main() {
@@ -56,8 +56,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		utils.DecryptAndConvertToJSON("ss")
-		// services.ConsumeAndProcess(ctx)
+		services.ConsumeAndProcess(ctx)
 	}()
 
 	// Channel to listen for interrupt or terminate signals
