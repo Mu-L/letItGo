@@ -1,10 +1,10 @@
 module.exports = {
     apps: [
         {
-            name: 'webhook',
+            name: 'api',
             script: 'go',
             args: 'run main.go',
-            cwd: './webhook',
+            cwd: './api',
             interpreter: 'none',
             output: './logs/api.log',
         },
