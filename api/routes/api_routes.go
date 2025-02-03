@@ -10,6 +10,8 @@ import (
 func ApiRoutes(router *mux.Router) {
 	router.HandleFunc("/schedule", SchduleHandler).Methods("POST")
 	router.HandleFunc("/webhook/verify", VerifyWebhookHandler).Methods("POST")
+	router.HandleFunc("/", APILandingPageHandler).Methods("GET")
+	router.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 }
 
 func SchduleHandler(w http.ResponseWriter, r *http.Request) {
@@ -20,4 +22,12 @@ func SchduleHandler(w http.ResponseWriter, r *http.Request) {
 func VerifyWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	controllers.VerifyWebhookHandler(ctx, w, r)
+}
+
+func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "public/404.html")
+}
+
+func APILandingPageHandler(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "public/apiIndex.html")
 }
