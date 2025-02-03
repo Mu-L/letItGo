@@ -11,12 +11,10 @@ import (
 	"github.com/Sumit189/letItGo/common/database"
 	"github.com/Sumit189/letItGo/common/repository"
 	common_services "github.com/Sumit189/letItGo/common/services"
-	"github.com/Sumit189/letItGo/common/utils"
 	"github.com/Sumit189/letItGo/producer/services"
 )
 
 func main() {
-	utils.LoggerInit("producer.log")
 	producerAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
