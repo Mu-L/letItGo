@@ -12,11 +12,9 @@ import (
 	"github.com/Sumit189/letItGo/common/repository"
 	common_services "github.com/Sumit189/letItGo/common/services"
 	"github.com/Sumit189/letItGo/common/utils"
-	"github.com/Sumit189/letItGo/consumer/services"
 )
 
 func main() {
-	utils.LoggerInit("consumer.log")
 	consumerAsciiArt := `
 	####     ### ###  #### ##    ####   #### ##   ## ##    ## ##   
 	 ##       ##  ##  # ## ##     ##    # ## ##  ##   ##  ##   ##  
@@ -35,9 +33,7 @@ func main() {
 	 ## ##    ## ##   ###  ##   ## ##    ## ##   ##   ##  ### ###  #### ##  
 	`
 	log.Println(consumerAsciiArt)
-
 	common_services.LiftENV()
-	utils.AESInit()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -60,7 +56,8 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		services.ConsumeAndProcess(ctx)
+		utils.DecryptAndConvertToJSON("ss")
+		// services.ConsumeAndProcess(ctx)
 	}()
 
 	// Channel to listen for interrupt or terminate signals
