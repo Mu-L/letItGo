@@ -8,7 +8,7 @@ import (
 )
 
 func LiftENV() {
-	envPath := "./.env"
+	envPath := ".env"
 	if _, err := os.Stat(envPath); os.IsNotExist(err) {
 		log.Fatalf("Error: .env file does not exist at path: %s", envPath)
 		return
