@@ -4,3 +4,8 @@ BUILD_DIR=$(pwd)/build
 GOOS=linux GOARCH=amd64 go build -o $BUILD_DIR/api ./api
 GOOS=linux GOARCH=amd64 go build -o $BUILD_DIR/producer ./producer
 GOOS=linux GOARCH=amd64 go build -o $BUILD_DIR/consumer ./consumer
+
+# Build for mac
+go build -o $BUILD_DIR/api ./api
+go build -o $BUILD_DIR/producer ./producer
+go build -o $BUILD_DIR/consumer ./consumer
