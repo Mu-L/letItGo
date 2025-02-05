@@ -288,7 +288,7 @@ func processWorker(ctx context.Context, processChan <-chan models.Scheduler, wor
 				log.Printf("Worker %d: Process channel closed. Exiting processWorker.", workerID)
 				return
 			}
-			processSchedule(schedule, workerID)
+			go processSchedule(schedule, workerID)
 		}
 	}
 }
