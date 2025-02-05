@@ -278,6 +278,9 @@ func scheduler(ctx context.Context, scheduleHeap *ScheduleHeap, heapMutex *sync.
 
 // processWorker listens to the processChan and processes schedules
 func processWorker(ctx context.Context, processChan <-chan models.Scheduler, workerID int) {
+	const maxWorkers = 100
+	workerPool := make(chan struct{}, maxWorkers)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -288,7 +291,12 @@ func processWorker(ctx context.Context, processChan <-chan models.Scheduler, wor
 				log.Printf("Worker %d: Process channel closed. Exiting processWorker.", workerID)
 				return
 			}
-			go processSchedule(schedule, workerID)
+
+			workerPool <- struct{}{}
+			go func(schedule models.Scheduler) {
+				defer func() { <-workerPool }()
+				processSchedule(schedule, workerID)
+			}(schedule)
 		}
 	}
 }
