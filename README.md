@@ -187,10 +187,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Write tests for new features
 - Update documentation as needed
 
-## License
-
-This project is licensed under the GNU GPT3 License - see the [LICENSE](LICENSE) file for details.
-
 ## Acknowledgements
 
 - [Gorilla Mux](https://github.com/gorilla/mux) for HTTP routing
