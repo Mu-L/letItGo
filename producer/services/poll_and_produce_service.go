@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -37,16 +38,18 @@ func setupProducer(brokers []string) (sarama.AsyncProducer, error) {
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
-
-	config.Net.SASL.Enable = true
-	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-	config.Net.SASL.TokenProvider = &MSKAccessTokenProvider{}
-
-	config.Net.TLS.Enable = true
-	config.Net.TLS.Config = &tls.Config{
-		InsecureSkipVerify: false,
+	if os.Getenv("ENVIRONMENT") == "development" && strings.Contains(brokers[0], "localhost") {
+		// Development setup with local Kafka
+	} else {
+		// Production setup with AWS MSK
+		config.Net.SASL.Enable = true
+		config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+		config.Net.SASL.TokenProvider = &MSKAccessTokenProvider{}
+		config.Net.TLS.Enable = true
+		config.Net.TLS.Config = &tls.Config{
+			InsecureSkipVerify: false,
+		}
 	}
-
 	producer, err := sarama.NewAsyncProducer(brokers, config)
 	if err != nil {
 		return nil, err

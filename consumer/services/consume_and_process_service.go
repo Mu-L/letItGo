@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -65,12 +66,16 @@ func initKafkaReader() (sarama.ConsumerGroup, error) {
 	var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_1_0_0
-	config.Net.SASL.Enable = true
-	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-	config.Net.SASL.TokenProvider = &MSKAccessTokenProvider{}
-	config.Net.TLS.Enable = true
-	config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: false}
-	config.Consumer.Return.Errors = true
+	if os.Getenv("ENVIRONMENT") == "development" && strings.Contains(kafkaBrokers[0], "localhost") {
+		// Development setup with local Kafka
+	} else {
+		config.Net.SASL.Enable = true
+		config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
+		config.Net.SASL.TokenProvider = &MSKAccessTokenProvider{}
+		config.Net.TLS.Enable = true
+		config.Net.TLS.Config = &tls.Config{InsecureSkipVerify: false}
+		config.Consumer.Return.Errors = true
+	}
 
 	consumer, err := sarama.NewConsumerGroup(kafkaBrokers, consumerGroupID, config)
 	if err != nil {
