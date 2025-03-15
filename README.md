@@ -1,7 +1,7 @@
 # LetItGo
 
 <p align="center">
-  <img src="/assets/logo.png" alt="LetItGo Logo" width="200"/>
+  <img src="/assets/logo.png" alt="LetItGo Logo" width="400"/>
 </p>
 
 LetItGo is a robust, distributed webhook scheduling system built in Go that allows for precise timing of API calls. Whether you need one-time or recurring webhook triggers, LetItGo provides a reliable solution with built-in retry mechanisms and encryption.
@@ -19,6 +19,10 @@ LetItGo is a robust, distributed webhook scheduling system built in Go that allo
 - **Redis Caching**: High-performance caching for processed tasks
 
 ## Architecture
+<p align="center">
+  <img src="/assets/letitgo.svg" alt="LetItGo Architecture" width="700"/>
+</p>
+
 
 LetItGo follows a microservices architecture with three main components:
 
