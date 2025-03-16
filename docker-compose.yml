@@ -1,0 +1,110 @@
+services:
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Increase message size limits substantially
+      KAFKA_MESSAGE_MAX_BYTES: 536870912  # 512MB
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 536870912  # 512MB
+      KAFKA_FETCH_MESSAGE_MAX_BYTES: 536870912  # 512MB
+      # Increase socket configuration limits
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 536870912  # 512MB
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 1048576  # 1MB
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 1048576  # 1MB
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--list", "--bootstrap-server", "kafka:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ./api
+    restart: always
+    ports:
+      - "8081:8081"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - API_PORT=8081
+    env_file:
+      - .env
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "sleep 20 && ./producer"  # Increased delay
+    restart: always
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BROKER=kafka:9092
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "sleep 15 && ./consumer"
+    restart: always
+    depends_on:
+      kafka:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - KAFKA_BROKER=kafka:9092
+
+volumes:
+  mongodb_data:
+  redis_data:

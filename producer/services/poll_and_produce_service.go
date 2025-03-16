@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -38,7 +37,7 @@ func setupProducer(brokers []string) (sarama.AsyncProducer, error) {
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Retry.Max = 5
 	config.Producer.Return.Successes = true
-	if os.Getenv("ENVIRONMENT") == "development" && strings.Contains(brokers[0], "localhost") {
+	if os.Getenv("ENVIRONMENT") == "development" {
 		// Development setup with local Kafka
 	} else {
 		// Production setup with AWS MSK
@@ -61,6 +60,13 @@ func setupProducer(brokers []string) (sarama.AsyncProducer, error) {
 func PollAndProduce(ctx context.Context) {
 	var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
 	log.Println("Starting Producer Service...")
+
+	// Add detailed logging
+	if kafkaBrokers[0] == "" {
+		log.Fatalf("KAFKA_BROKER environment variable not set")
+	}
+	log.Printf("Attempting to connect to Kafka brokers: %v", kafkaBrokers)
+
 	producer, err := setupProducer(kafkaBrokers)
 	if err != nil {
 		log.Fatalf("Failed to setup Kafka producer: %v", err)
@@ -71,12 +77,20 @@ func PollAndProduce(ctx context.Context) {
 		}
 	}()
 
+	// Add error channel handling
+	go func() {
+		for err := range producer.Errors() {
+			log.Printf("Producer error: %v", err)
+		}
+	}()
+
 	ticker := time.NewTicker(fetchWindow)
 	expireTicker := time.NewTicker(expireScheduleWindow)
 
 	defer ticker.Stop()
 	defer expireTicker.Stop()
 
+	log.Println("Successfully connected to Kafka!")
 	log.Println("Started Producer Service...")
 	log.Println("__________________________")
 	log.Println("Polling and producing schedules...")

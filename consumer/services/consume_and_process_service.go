@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -64,11 +64,26 @@ func (m *MSKAccessTokenProvider) Token() (*sarama.AccessToken, error) {
 
 func initKafkaReader() (sarama.ConsumerGroup, error) {
 	var kafkaBrokers = []string{os.Getenv("KAFKA_BROKER")}
+	log.Println("Initializing Kafka consumer with brokers:", kafkaBrokers)
+
+	if kafkaBrokers[0] == "" {
+		return nil, fmt.Errorf("KAFKA_BROKER environment variable not set")
+	}
+
 	config := sarama.NewConfig()
 	config.Version = sarama.V2_1_0_0
-	if os.Getenv("ENVIRONMENT") == "development" && strings.Contains(kafkaBrokers[0], "localhost") {
+
+	// Add connection timeouts
+	config.Net.DialTimeout = 30 * time.Second
+	config.Net.ReadTimeout = 30 * time.Second
+	config.Net.WriteTimeout = 30 * time.Second
+	config.Consumer.Return.Errors = true
+
+	if os.Getenv("ENVIRONMENT") == "development" {
 		// Development setup with local Kafka
+		log.Println("Setting up consumer for development environment")
 	} else {
+		log.Println("Setting up consumer for production environment with AWS MSK")
 		config.Net.SASL.Enable = true
 		config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
 		config.Net.SASL.TokenProvider = &MSKAccessTokenProvider{}
