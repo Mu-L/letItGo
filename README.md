@@ -24,8 +24,7 @@
 - [API Usage](#api-usage)
   - [Schedule a Webhook](#schedule-a-webhook)
   - [Schedule a Recurring Webhook](#schedule-a-recurring-webhook)
-  - [Verify a Webhook Endpoint](#verify-a-webhook-endpoint)
-  - [Response Formats](#response-formats) 
+  - [Verify a Webhook Endpoint](#verify-a-webhook-endpoint) 
 - [Deployment](#deployment)
 - [Security](#security)
   - [Webhook Verification Process](#webhook-verification-process)
@@ -253,19 +252,6 @@ Your webhook endpoint needs to return the correct signature in the `X-Webhook-Si
     "verified": true,
     "verification_time": "2023-10-01T12:34:56Z"
   }
-}
-```
-
-### Response Formats
-
-All API endpoints return responses in the following format:
-
-```json
-{
-  "success": true|false,
-  "message": "Human-readable message",
-  "data": {}, // Response data object
-  "error": {} // Only present when success is false
 }
 ```
 
