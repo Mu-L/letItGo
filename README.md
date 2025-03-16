@@ -33,7 +33,6 @@
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
   - [Coding Standards](#coding-standards)
-- [License](#license)
 - [Acknowledgements](#acknowledgements)
 - [Contact](#contact)
 
@@ -380,10 +379,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Update documentation as needed
 - Use proper error handling and logging
 - Ensure backward compatibility when making changes
-
-## License
-
-This project is licensed under the GNU GPL3 License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgements
 
