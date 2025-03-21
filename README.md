@@ -366,6 +366,15 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Use proper error handling and logging
 - Ensure backward compatibility when making changes
 
+## Support
+
+If you find this package useful, consider buying me a coffee:
+<p>
+  <a href="https://buymeacoffee.com/sumit189" target="_blank">
+      <img src="https://cdn.buymeacoffee.com/buttons/v2/default-orange.png" width="200px" alt="Buy Me A Coffee">
+  </a>
+</p>
+
 ## Acknowledgements
 
 - [Gorilla Mux](https://github.com/gorilla/mux) for HTTP routing
