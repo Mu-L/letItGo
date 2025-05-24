@@ -1,3 +1,7 @@
+
+## GitAds Sponsored
+[![Sponsored by GitAds](https://gitads.dev/v1/ad-serve?source=sumit189/letitgo@github)](https://gitads.dev/v1/ad-track?source=sumit189/letitgo@github)
+
 # LetItGo
 
 <p align="center">
