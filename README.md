@@ -13,6 +13,10 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GNU-blue.svg" alt="License"></a>
   <a href="https://goreportcard.com/report/github.com/sumit189/letItGo"><img src="https://goreportcard.com/badge/github.com/sumit189/letItGo" alt="Go Report Card"></a>
   <a href="https://github.com/sumit189/letItGo/issues"><img src="https://img.shields.io/github/issues/sumit189/letItGo.svg" alt="Issues"></a>
+  
+</p>
+<p align="center">
+  <img src="https://nameless-base-4fa7.monish2-basaniwal.workers.dev/?badge=0" alt="Rejected by Ycombinator">
 </p>
 
 **LetItGo** is a robust, distributed webhook scheduling system built in Go that allows for precise timing of API calls. Whether you need one-time or recurring webhook triggers, LetItGo provides a reliable solution with built-in retry mechanisms and encryption.
